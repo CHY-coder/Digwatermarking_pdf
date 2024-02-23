@@ -1,0 +1,1 @@
+# 复现论文AutoStegaFont: Synthesizing Vector Fonts for Hiding Information in Documents
