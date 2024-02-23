@@ -97,3 +97,29 @@ class UpsampleConvLayer(torch.nn.Module):
         out = self.reflection_pad(x_in)
         out = self.conv2d(out)
         return out
+
+class Discriminator(torch.nn.Module):
+    def __init__(self, H, W):
+        super(Discriminator, self).__init__()
+        self.model = torch.nn.Sequential(
+            # input layer (1, H, W)
+            torch.nn.Linear(H*W, 1024),
+            torch.nn.LeakyReLU(0.2),
+            torch.nn.Dropout(0.3),
+            # hidden layer
+            torch.nn.Linear(1024, 512),
+            torch.nn.LeakyReLU(0.2),
+            torch.nn.Dropout(0.3),
+
+            torch.nn.Linear(512, 256),
+            torch.nn.LeakyReLU(0.2),
+            torch.nn.Dropout(0.3),
+            # output layer
+            torch.nn.Linear(256, 1),
+            torch.nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)
+        output = self.model(x)
+        return output
