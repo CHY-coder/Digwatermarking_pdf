@@ -1,4 +1,4 @@
-# 复现论文AutoStegaFont: Synthesizing Vector Fonts for Hiding Information in Documents
+# Reproduction of AutoStegaFont: Synthesizing Vector Fonts for Hiding Information in Documents
 
 # Reference
 ```
