@@ -1,18 +1,18 @@
 import torch
 
 
-class TransformerNet(torch.nn.Module):
+class Encoder(torch.nn.Module):
     def __init__(self):
-        super(TransformerNet, self).__init__()
+        super(Encoder, self).__init__()
         # Initial convolution layers
         self.conv1 = ConvLayer(3, 32, kernel_size=9, stride=1)
         self.in1 = torch.nn.InstanceNorm2d(32, affine=True)
+        self.res1 = ResidualBlock(32)
         self.conv2 = ConvLayer(32, 64, kernel_size=3, stride=2)
         self.in2 = torch.nn.InstanceNorm2d(64, affine=True)
         self.conv3 = ConvLayer(64, 128, kernel_size=3, stride=2)
         self.in3 = torch.nn.InstanceNorm2d(128, affine=True)
         # Residual layers
-        self.res1 = ResidualBlock(128)
         self.res2 = ResidualBlock(128)
         self.res3 = ResidualBlock(128)
         self.res4 = ResidualBlock(128)
@@ -26,11 +26,17 @@ class TransformerNet(torch.nn.Module):
         # Non-linearities
         self.relu = torch.nn.ReLU()
 
-    def forward(self, X):
+    def forward(self, X, M):
         y = self.relu(self.in1(self.conv1(X)))
+        y = self.res1(y)
+
+        # concatenate M(0/1)
+        B, C, H, W = y.size()
+        massage = torch.full((B, 1, H, W), M)
+        y = torch.cat((y, massage), dim=1)
+
         y = self.relu(self.in2(self.conv2(y)))
         y = self.relu(self.in3(self.conv3(y)))
-        y = self.res1(y)
         y = self.res2(y)
         y = self.res3(y)
         y = self.res4(y)
@@ -39,6 +45,44 @@ class TransformerNet(torch.nn.Module):
         y = self.relu(self.in5(self.deconv2(y)))
         y = self.deconv3(y)
         return y
+
+class Decoder(torch.nn.Module):
+    def __init__(self):
+        super(Decoder, self).__init__()
+        
+        self.conv1 = ConvLayer(3, 32, kernel_size=3, stride=2)
+        self.in1 = torch.nn.InstanceNorm2d(32, affine=True)
+        self.conv2 = ConvLayer(32, 32, kernel_size=3, stride=1)
+        self.in2 = torch.nn.InstanceNorm2d(32, affine=True)
+        self.conv3 = ConvLayer(32, 64, kernel_size=3, stride=2)
+        self.in3 = torch.nn.InstanceNorm2d(64, affine=True)
+        self.conv4 = ConvLayer(64, 64, kernel_size=3, stride=1)
+        self.in4 = torch.nn.InstanceNorm2d(64, affine=True)
+        self.conv5 = ConvLayer(64, 128, kernel_size=3, stride=2)
+        self.in5 = torch.nn.InstanceNorm2d(128, affine=True)
+        self.conv6 = ConvLayer(128, 128, kernel_size=3, stride=1)
+        self.in6 = torch.nn.InstanceNorm2d(128, affine=True)
+        
+        self.flatten = torch.nn.Flatten()
+        self.fc1 = torch.nn.Linear(128 * 64 * 64, 512)  # 假设输入图像大小为 64 * 64
+        self.fc2 = torch.nn.Linear(512, 2)
+
+
+        self.relu = torch.nn.ReLU()
+    
+    def forward(self, y):
+        out = self.relu(self.in1(self.conv1(y)))
+        out = self.relu(self.in2(self.conv2(out)))
+        out = self.relu(self.in3(self.conv3(out)))
+        out = self.relu(self.in4(self.conv4(out)))
+        out = self.relu(self.in5(self.conv5(out)))
+        out = self.relu(self.in6(self.conv6(out)))
+        out = self.flatten(out)
+        out = self.relu(self.fc1(out))
+        out = self.fc2(out)
+
+        return out
+
 
 
 class ConvLayer(torch.nn.Module):
