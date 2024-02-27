@@ -167,3 +167,38 @@ class Discriminator(torch.nn.Module):
         x = x.view(x.size(0), -1)
         output = self.model(x)
         return output
+
+
+def transform_net(encoded_image, args, global_step):
+    ramp_fn = lambda ramp: min(float(global_step) / ramp, 1.0)
+
+    rnd_bri = ramp_fn(args.rnd_bri_ramp) * args.rnd_bri
+    rnd_hue = ramp_fn(args.rnd_hue_ramp) * args.rnd_hue
+    # 假设utils.get_rnd_brightness_tf()返回一个形状为[batch_size, 1, 1, 1]的张量，包含随机亮度值
+    # 我们将在这里模拟一个简化版本
+    rnd_brightness = torch.randn((args.batch_size, 1, 1, 1)) * rnd_bri
+
+    rnd_noise = torch.rand([]) * ramp_fn(args.rnd_noise_ramp) * args.rnd_noise
+
+    contrast_low = 1.0 - (1.0 - args.contrast_low) * ramp_fn(args.contrast_ramp)
+    contrast_high = 1.0 + (args.contrast_high - 1.0) * ramp_fn(args.contrast_ramp)
+
+    rnd_sat = torch.rand([]) * ramp_fn(args.rnd_sat_ramp) * args.rnd_sat
+
+    # 模糊模拟省略
+    
+    noise = torch.randn_like(encoded_image) * rnd_noise
+    encoded_image = encoded_image + noise
+    encoded_image = torch.clamp(encoded_image, 0, 1)
+
+    contrast_scale = torch.rand((encoded_image.size(0), 1, 1, 1)) * (contrast_high - contrast_low) + contrast_low
+    encoded_image = encoded_image * contrast_scale
+    encoded_image = encoded_image + rnd_brightness
+    encoded_image = torch.clamp(encoded_image, 0, 1)
+
+    encoded_image_lum = torch.sum(encoded_image * torch.tensor([0.3, 0.6, 0.1]).view(1, 1, 1, 3), dim=3, keepdim=True)
+    encoded_image = (1 - rnd_sat) * encoded_image + rnd_sat * encoded_image_lum
+
+    encoded_image = encoded_image.reshape(-1, 400, 400, 3)
+
+    return encoded_image
