@@ -8,7 +8,7 @@ class Encoder(torch.nn.Module):
         self.conv1 = ConvLayer(3, 32, kernel_size=9, stride=1)
         self.in1 = torch.nn.InstanceNorm2d(32, affine=True)
         self.res1 = ResidualBlock(32)
-        self.conv2 = ConvLayer(32, 64, kernel_size=3, stride=2)
+        self.conv2 = ConvLayer(33, 64, kernel_size=3, stride=2)
         self.in2 = torch.nn.InstanceNorm2d(64, affine=True)
         self.conv3 = ConvLayer(64, 128, kernel_size=3, stride=2)
         self.in3 = torch.nn.InstanceNorm2d(128, affine=True)
@@ -32,8 +32,10 @@ class Encoder(torch.nn.Module):
 
         # concatenate M(0/1)
         B, C, H, W = y.size()
-        massage = torch.full((B, 1, H, W), M)
-        y = torch.cat((y, massage), dim=1)
+        message_channel = torch.zeros((B, 1, H, W))
+        for i, m in enumerate(M):
+            message_channel[i, :, :, :] = m
+        y = torch.cat((y, message_channel), dim=1)
 
         y = self.relu(self.in2(self.conv2(y)))
         y = self.relu(self.in3(self.conv3(y)))
@@ -146,8 +148,8 @@ class Discriminator(torch.nn.Module):
     def __init__(self, H, W):
         super(Discriminator, self).__init__()
         self.model = torch.nn.Sequential(
-            # input layer (1, H, W)
-            torch.nn.Linear(H*W, 1024),
+            # input layer (3, H, W)
+            torch.nn.Linear(3*H*W, 1024),
             torch.nn.LeakyReLU(0.2),
             torch.nn.Dropout(0.3),
             # hidden layer
@@ -169,7 +171,7 @@ class Discriminator(torch.nn.Module):
         return output
 
 
-def transform_net(encoded_image, args, global_step):
+def add_noise(encoded_image, args, global_step):
     ramp_fn = lambda ramp: min(float(global_step) / ramp, 1.0)
 
     rnd_bri = ramp_fn(args.rnd_bri_ramp) * args.rnd_bri
