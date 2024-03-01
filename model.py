@@ -1,5 +1,7 @@
 import torch
-
+from torchvision import transforms
+from PIL import Image
+import numpy as np
 
 class Encoder(torch.nn.Module):
     def __init__(self):
@@ -171,36 +173,52 @@ class Discriminator(torch.nn.Module):
         return output
 
 
-def add_noise(encoded_image, args, global_step):
-    ramp_fn = lambda ramp: min(float(global_step) / ramp, 1.0)
+class GaussianNoise(torch.nn.Module):
+    """Adds Gaussian noise to an image."""
 
-    rnd_bri = ramp_fn(args.rnd_bri_ramp) * args.rnd_bri
-    rnd_hue = ramp_fn(args.rnd_hue_ramp) * args.rnd_hue
-    # 假设utils.get_rnd_brightness_tf()返回一个形状为[batch_size, 1, 1, 1]的张量，包含随机亮度值
-    # 我们将在这里模拟一个简化版本
-    rnd_brightness = torch.randn((args.batch_size, 1, 1, 1)) * rnd_bri
+    def __init__(self, mean=0., std=1.):
+        super().__init__()
+        self.std = std
+        self.mean = mean
 
-    rnd_noise = torch.rand([]) * ramp_fn(args.rnd_noise_ramp) * args.rnd_noise
+    def forward(self, tensor):
+        return tensor + torch.randn(tensor.size()).to(tensor.device) * self.std + self.mean
 
-    contrast_low = 1.0 - (1.0 - args.contrast_low) * ramp_fn(args.contrast_ramp)
-    contrast_high = 1.0 + (args.contrast_high - 1.0) * ramp_fn(args.contrast_ramp)
 
-    rnd_sat = torch.rand([]) * ramp_fn(args.rnd_sat_ramp) * args.rnd_sat
+class ColorJitter(torch.nn.Module):
+    """Randomly changes the brightness, contrast, saturation, and hue of an image."""
 
-    # 模糊模拟省略
-    
-    noise = torch.randn_like(encoded_image) * rnd_noise
-    encoded_image = encoded_image + noise
-    encoded_image = torch.clamp(encoded_image, 0, 1)
+    def __init__(self, brightness=0, contrast=0, saturation=0, hue=0):
+        super().__init__()
+        self.transform = transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation,
+                                                hue=hue)
 
-    contrast_scale = torch.rand((encoded_image.size(0), 1, 1, 1)) * (contrast_high - contrast_low) + contrast_low
-    encoded_image = encoded_image * contrast_scale
-    encoded_image = encoded_image + rnd_brightness
-    encoded_image = torch.clamp(encoded_image, 0, 1)
+    def forward(self, img):
+        return self.transform(img)
 
-    encoded_image_lum = torch.sum(encoded_image * torch.tensor([0.3, 0.6, 0.1]).view(1, 1, 1, 3), dim=3, keepdim=True)
-    encoded_image = (1 - rnd_sat) * encoded_image + rnd_sat * encoded_image_lum
 
-    encoded_image = encoded_image.reshape(-1, 400, 400, 3)
+def generate_random_number():
+    mean = 1
+    std_dev = 0.2  # 较小的标准差意味着大部分数值将更加集中在均值附近
+    number = np.random.normal(mean, std_dev)
 
-    return encoded_image
+    # 确保生成的数在0到2之间
+    number = max(min(number, 2), 0)
+    return number
+
+def add_noise(batch):
+    b, c, h, w = batch.shape
+
+    # Define the sequence of transformations
+    transforms_list = transforms.Compose([
+        transforms.Resize((h * generate_random_number(), w * generate_random_number())),  # Resize
+        transforms.RandomAffine(degrees=15, translate=(0.1, 0.1), scale=(0.9, 1.1)),  # Rotate, translate, scale
+        transforms.RandomPerspective(distortion_scale=0.2, p=0.5),  # Perspective transformation
+        transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),  # Blur
+        GaussianNoise(mean=0., std=0.1),  # Gaussian noise
+        ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Color manipulation
+    ])
+
+    # Apply the transformations
+    batch_transformed = torch.stack([transforms_list(img) for img in batch])
+    return batch_transformed

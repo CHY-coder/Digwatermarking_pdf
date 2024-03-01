@@ -11,9 +11,10 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 from torchvision import transforms
 import torch.onnx
+import matplotlib.pyplot as plt
 
 import utils
-from model import Encoder, Decoder, Discriminator
+from model import Encoder, Decoder, Discriminator, add_noise
 from vgg import Vgg16
 
 
@@ -61,6 +62,7 @@ def train(args):
 
     decoder = Decoder().to(device)
     optimizer_de = Adam(decoder.parameters(), args.lr)
+    criterion_de = torch.nn.CrossEntropyLoss()
 
     for e in range(args.epochs):
         
@@ -68,7 +70,10 @@ def train(args):
         discri.train()
         decoder.train()
 
-        agg_content_loss = 0.
+        vq_loss = 0
+        percep_loss = 0
+        discri_loss = 0
+        m_loss = 0
         count = 0
         for batch_id, (x, message) in enumerate(train_loader):
             n_batch = len(x)
@@ -83,51 +88,51 @@ def train(args):
             y = utils.normalize_batch(y)
             x = utils.normalize_batch(x)
 
-            vq_loss = args.vq_weight * mse_loss(y, x)
+            vq_loss = vq_loss + args.vq_weight * mse_loss(y, x)
 
             features_y = vgg(y)
             features_x = vgg(x)
-            percep_loss = 0
+            p_loss = 0
             for ft_y, ft_x in zip(features_y, features_x):
                 gm_y = utils.gram_matrix(ft_y)
                 gm_x = utils.gram_matrix(ft_x)
-                percep_loss += mse_loss(gm_y, gm_x)
-            percep_loss = args.percep_weight * percep_loss
+                p_loss += mse_loss(gm_y, gm_x)
+            percep_loss = percep_loss + args.percep_weight * p_loss
 
             discri_x = discri(x)
             discri_y = discri(y)
-            discri_loss = criterion(discri_x, torch.ones_like(discri_x)) + criterion(discri_y, torch.zeros_like(discri_y))
-            discri_loss = args.A_weight * discri_loss
+            d_loss = criterion(discri_x, torch.ones_like(discri_x)) + criterion(discri_y, torch.zeros_like(discri_y))
+            discri_loss = discri_loss + args.A_weight * d_loss
 
+            y = add_noise(y)
+            m = decoder(y)
+            m_loss = m_loss + args.m_weight * criterion_de(m, message)
 
-            total_loss.backward()
+            loss = vq_loss + percep_loss + discri_loss + m_loss
+            loss.backward()
+
             optimizer_en.step()
-
-            agg_content_loss += content_loss.item()
+            optimizer_discri.step()
+            optimizer_de.step()
 
             if (batch_id + 1) % args.log_interval == 0:
-                mesg = "{}\tEpoch {}:\t[{}/{}]\tcontent: {:.6f}\ttotal: {:.6f}".format(
-                    time.ctime(), e + 1, count, len(train_dataset),
-                                  agg_content_loss / (batch_id + 1),
-                                  (agg_content_loss) / (batch_id + 1)
+                mesg = "{}\tEpoch {}:\t[{}/{}]\ttotal loss: {:.6f}\tvisual quality: {:.6f}\t" \
+                       "perceptual: {:.6f}\tdiscriminator: {:.6f}\tmessage: {:.6f}".format(
+                    time.ctime(), e + 1, count, len(train_dataset), loss / (batch_id + 1), vq_loss / (batch_id + 1),
+                    percep_loss / (batch_id + 1), discri_loss / (batch_id + 1), m_loss / (batch_id + 1)
                 )
                 print(mesg)
 
             if args.checkpoint_model_dir is not None and (batch_id + 1) % args.checkpoint_interval == 0:
-                encoder.eval().cpu()
-                ckpt_model_filename = "ckpt_epoch_" + str(e) + "_batch_id_" + str(batch_id + 1) + ".pth"
-                ckpt_model_path = os.path.join(args.checkpoint_model_dir, ckpt_model_filename)
-                torch.save(encoder.state_dict(), ckpt_model_path)
+                utils.save_model(encoder, decoder, discri, args, str(e), str(batch_id+1))
                 encoder.to(device).train()
+                decoder.to(device).train()
+                discri.to(device).train()
 
     # save model
-    encoder.eval().cpu()
-    save_model_filename = "epoch_" + str(args.epochs) + "_" + str(time.ctime()).replace(' ', '_') + "_" + str(
-        args.content_weight) + "_" + str(args.style_weight) + ".model"
-    save_model_path = os.path.join(args.save_model_dir, save_model_filename)
-    torch.save(encoder.state_dict(), save_model_path)
+    utils.save_model(encoder, decoder, discri, args)
 
-    print("\nDone, trained model saved at", save_model_path)
+    print("\nDone, trained model saved at", args.checkpoint_model_dir)
 
 def main():
     main_arg_parser = argparse.ArgumentParser(description="parser for Digital watermarking")
@@ -177,7 +182,6 @@ def main():
                                  help="set it to 1 for running on cuda, 0 for CPU")
     eval_arg_parser.add_argument("--export_onnx", type=str,
                                  help="export ONNX model to a given file")
-    # eval_arg_parser.add_argument('--mps', action='store_true', default=False, help='enable macOS GPU training')
 
     args = main_arg_parser.parse_args()
 
@@ -187,15 +191,10 @@ def main():
     if args.cuda and not torch.cuda.is_available():
         print("ERROR: cuda is not available, try running on CPU")
         sys.exit(1)
-    # if not args.mps and torch.backends.mps.is_available():
-    #     print("WARNING: mps is available, run with --mps to enable macOS GPU")
 
     if args.subcommand == "train":
         check_paths(args)
         train(args)
-    # else:
-    #     stylize(args)
-
 
 if __name__ == "__main__":
     main()

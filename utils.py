@@ -1,5 +1,6 @@
 import torch
 from PIL import Image
+import os
 
 
 def load_image(filename, size=None, scale=None):
@@ -32,3 +33,20 @@ def normalize_batch(batch):
     std = batch.new_tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
     batch = batch.div_(255.0)
     return (batch - mean) / std
+
+def save_model(encoder, decoder, discri, args, e='end', batch_id='none'):
+    encoder.eval().cpu()
+    encoder_model_filename = "encoder_epoch_" + e + "_batch_id_" + batch_id + ".pth"
+    encoder_model_path = os.path.join(args.checkpoint_model_dir, encoder_model_filename)
+    torch.save(encoder.state_dict(), encoder_model_path)
+
+    decoder.eval().cpu()
+    decoder_model_filename = "decoder_epoch_" + e + "_batch_id_" + batch_id + ".pth"
+    decoder_model_path = os.path.join(args.checkpoint_model_dir, decoder_model_filename)
+    torch.save(decoder.state_dict(), decoder_model_path)
+
+    discri.eval().cpu()
+    discri_model_filename = "discri_epoch_" + e + "_batch_id_" + batch_id + ".pth"
+    discri_model_path = os.path.join(args.checkpoint_model_dir, discri_model_filename)
+    torch.save(encoder.state_dict(), discri_model_path)
+
