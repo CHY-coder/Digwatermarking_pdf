@@ -68,7 +68,7 @@ class Decoder(torch.nn.Module):
         self.in6 = torch.nn.InstanceNorm2d(128, affine=True)
         
         self.flatten = torch.nn.Flatten()
-        self.fc1 = torch.nn.Linear(128 * 64 * 64, 512)  # 假设输入图像大小为 64 * 64
+        self.fc1 = torch.nn.Linear(128 * 8 * 8, 512)  # 假设输入图像大小为 64 * 64
         self.fc2 = torch.nn.Linear(512, 2)
 
 
@@ -211,12 +211,13 @@ def add_noise(batch):
 
     # Define the sequence of transformations
     transforms_list = transforms.Compose([
-        transforms.Resize((h * generate_random_number(), w * generate_random_number())),  # Resize
+        transforms.Resize((round(h * generate_random_number()), round(w * generate_random_number()))),  # Resize
         transforms.RandomAffine(degrees=15, translate=(0.1, 0.1), scale=(0.9, 1.1)),  # Rotate, translate, scale
         transforms.RandomPerspective(distortion_scale=0.2, p=0.5),  # Perspective transformation
         transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),  # Blur
         GaussianNoise(mean=0., std=0.1),  # Gaussian noise
         ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Color manipulation
+        transforms.Resize((64,64))
     ])
 
     # Apply the transformations

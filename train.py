@@ -74,6 +74,7 @@ def train(args):
         percep_loss = 0
         discri_loss = 0
         m_loss = 0
+        loss = 0
         count = 0
         for batch_id, (x, message) in enumerate(train_loader):
             n_batch = len(x)
@@ -88,7 +89,8 @@ def train(args):
             y = utils.normalize_batch(y)
             x = utils.normalize_batch(x)
 
-            vq_loss = vq_loss + args.vq_weight * mse_loss(y, x)
+            vq_l = args.vq_weight * mse_loss(y, x)
+            vq_loss = vq_loss + vq_l
 
             features_y = vgg(y)
             features_x = vgg(x)
@@ -97,19 +99,23 @@ def train(args):
                 gm_y = utils.gram_matrix(ft_y)
                 gm_x = utils.gram_matrix(ft_x)
                 p_loss += mse_loss(gm_y, gm_x)
-            percep_loss = percep_loss + args.percep_weight * p_loss
+            percep_l = args.percep_weight * p_loss
+            percep_loss = percep_loss + percep_l
 
             discri_x = discri(x)
             discri_y = discri(y)
             d_loss = criterion(discri_x, torch.ones_like(discri_x)) + criterion(discri_y, torch.zeros_like(discri_y))
-            discri_loss = discri_loss + args.A_weight * d_loss
+            discri_l = args.A_weight * d_loss
+            discri_loss = discri_loss + discri_l
 
             y = add_noise(y)
             m = decoder(y)
-            m_loss = m_loss + args.m_weight * criterion_de(m, message)
+            m_l = args.m_weight * criterion_de(m, message)
+            m_loss = m_loss + m_l
 
-            loss = vq_loss + percep_loss + discri_loss + m_loss
-            loss.backward()
+            l = vq_l + percep_l + discri_l + m_l
+            loss = loss + l
+            l.backward()
 
             optimizer_en.step()
             optimizer_discri.step()
@@ -147,7 +153,7 @@ def main():
                                   help="path to training dataset(glyph image), the path should point to a folder ")
     train_arg_parser.add_argument("--save-model-dir", type=str, required=True,
                                   help="path to folder where trained model will be saved.")
-    train_arg_parser.add_argument("--checkpoint-model-dir", type=str, default=None,
+    train_arg_parser.add_argument("--checkpoint-model-dir", type=str, default='./model',
                                   help="path to folder where checkpoints of trained models will be saved")
     train_arg_parser.add_argument("--image-size", type=int, default=256,
                                   help="size of training images, default is 256 X 256")
