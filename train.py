@@ -145,10 +145,10 @@ def main():
     subparsers = main_arg_parser.add_subparsers(title="subcommands", dest="subcommand")
 
     train_arg_parser = subparsers.add_parser("train", help="parser for training arguments")
-    train_arg_parser.add_argument("--epochs", type=int, default=2,
+    train_arg_parser.add_argument("--epochs", type=int, default=20,
                                   help="number of training epochs, default is 2")
-    train_arg_parser.add_argument("--batch-size", type=int, default=2,
-                                  help="batch size for training, default is 4")
+    train_arg_parser.add_argument("--batch-size", type=int, default=16,
+                                  help="batch size for training, default is 16")
     train_arg_parser.add_argument("--dataset", type=str, required=True,
                                   help="path to training dataset(glyph image), the path should point to a folder ")
     train_arg_parser.add_argument("--save-model-dir", type=str, required=True,
@@ -173,7 +173,7 @@ def main():
                                   help="learning rate, default is 1e-3")
     train_arg_parser.add_argument("--log-interval", type=int, default=500,
                                   help="number of images after which the training loss is logged, default is 500")
-    train_arg_parser.add_argument("--checkpoint-interval", type=int, default=2000,
+    train_arg_parser.add_argument("--checkpoint-interval", type=int, default=1000,
                                   help="number of batches after which a checkpoint of the trained model will be created")
 
     eval_arg_parser = subparsers.add_parser("eval", help="parser for evaluation arguments")
