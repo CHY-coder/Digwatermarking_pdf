@@ -110,7 +110,7 @@ def train(args):
 
             y = add_noise(y)
             m = decoder(y)
-            m_l = args.m_weight * criterion_de(m, message)
+            m_l = args.m_weight * criterion_de(m, message.to(device))
             m_loss = m_loss + m_l
 
             l = vq_l + percep_l + discri_l + m_l
