@@ -37,7 +37,7 @@ class Encoder(torch.nn.Module):
         message_channel = torch.zeros((B, 1, H, W))
         for i, m in enumerate(M):
             message_channel[i, :, :, :] = m
-        y = torch.cat((y, message_channel), dim=1)
+        y = torch.cat((y, message_channel.to(y.device)), dim=1)
 
         y = self.relu(self.in2(self.conv2(y)))
         y = self.relu(self.in3(self.conv3(y)))
