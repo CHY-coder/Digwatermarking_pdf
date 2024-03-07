@@ -3,6 +3,8 @@ import os
 import sys
 import time
 import re
+import logging
+import datetime
 
 import numpy as np
 import torch
@@ -17,7 +19,56 @@ import utils
 from model import Encoder, Decoder, Discriminator, add_noise
 from vgg import Vgg16
 
+# 设置日志格式
+def setup_logger(prefix='model_training', log_dir='logs', console_level=logging.ERROR):
+    """
+    初始化并配置日志器，返回一个已经配置好的logger实例。
 
+    参数:
+        prefix (str): 日志文件名的前缀。
+        log_dir (str): 存放日志文件的目录，默认为'logs'。
+        console_level (logging.LEVEL): 控制台日志级别，默认只显示错误及以上级别的信息。
+
+    返回:
+        logger: 配置好的logging.Logger实例。
+    """
+
+    def create_log_filename():
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f'{prefix}_{timestamp}.log'
+
+    # 创建日志目录（如果不存在）
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    # 创建自定义日志文件名
+    log_file_name = create_log_filename()
+    log_path = os.path.join(log_dir, log_file_name)
+
+    # 创建一个logger
+    logger = logging.getLogger(prefix)
+    logger.setLevel(logging.INFO)
+
+    # 创建一个handler，用于写入自定义日志文件
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(logging.INFO)
+
+    # 创建一个formatter，用于设置日志格式
+    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # 添加FileHandler到logger
+    logger.addHandler(file_handler)
+
+    # 创建一个StreamHandler，用于将错误级别及以上的日志输出到控制台
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(console_level)
+    stream_handler.setFormatter(formatter)
+
+    # 添加StreamHandler到logger
+    logger.addHandler(stream_handler)
+
+    return logger
 def check_paths(args):
     try:
         if not os.path.exists(args.save_model_dir):
@@ -30,6 +81,9 @@ def check_paths(args):
 
 
 def train(args):
+    logger = setup_logger()
+    logger.info("Training process started.")
+
     if args.cuda:
         device = torch.device("cuda")
     # elif args.mps:
@@ -64,81 +118,89 @@ def train(args):
     optimizer_de = Adam(decoder.parameters(), args.lr)
     criterion_de = torch.nn.CrossEntropyLoss()
 
-    for e in range(args.epochs):
-        
-        encoder.train()
-        discri.train()
-        decoder.train()
+    try:
+        for e in range(args.epochs):
 
-        vq_loss = 0
-        percep_loss = 0
-        discri_loss = 0
-        m_loss = 0
-        loss = 0
-        count = 0
-        for batch_id, (x, message) in enumerate(train_loader):
-            n_batch = len(x)
-            count += n_batch
+            encoder.train()
+            discri.train()
+            decoder.train()
 
-            optimizer_en.zero_grad()
-            optimizer_discri.zero_grad()
-            optimizer_de.zero_grad()
+            vq_loss = 0
+            percep_loss = 0
+            discri_loss = 0
+            m_loss = 0
+            loss = 0
+            count = 0
+            for batch_id, (x, message) in enumerate(train_loader):
+                n_batch = len(x)
+                count += n_batch
 
-            x = x.to(device)
-            y = encoder(x, message)
-            y = utils.normalize_batch(y)
-            x = utils.normalize_batch(x)
+                optimizer_en.zero_grad()
+                optimizer_discri.zero_grad()
+                optimizer_de.zero_grad()
 
-            vq_l = args.vq_weight * mse_loss(y, x)
-            vq_loss = vq_loss + vq_l
+                x = x.to(device)
+                y = encoder(x, message)
+                y = utils.normalize_batch(y)
+                x = utils.normalize_batch(x)
 
-            features_y = vgg(y)
-            features_x = vgg(x)
-            p_loss = 0
-            for ft_y, ft_x in zip(features_y, features_x):
-                gm_y = utils.gram_matrix(ft_y)
-                gm_x = utils.gram_matrix(ft_x)
-                p_loss += mse_loss(gm_y, gm_x)
-            percep_l = args.percep_weight * p_loss
-            percep_loss = percep_loss + percep_l
+                vq_l = args.vq_weight * mse_loss(y, x)
+                vq_loss = vq_loss + vq_l
 
-            discri_x = discri(x)
-            discri_y = discri(y)
-            d_loss = criterion(discri_x, torch.ones_like(discri_x)) + criterion(discri_y, torch.zeros_like(discri_y))
-            discri_l = args.A_weight * d_loss
-            discri_loss = discri_loss + discri_l
+                features_y = vgg(y)
+                features_x = vgg(x)
+                p_loss = 0
+                for ft_y, ft_x in zip(features_y, features_x):
+                    gm_y = utils.gram_matrix(ft_y)
+                    gm_x = utils.gram_matrix(ft_x)
+                    p_loss += mse_loss(gm_y, gm_x)
+                percep_l = args.percep_weight * p_loss
+                percep_loss = percep_loss + percep_l
 
-            y = add_noise(y)
-            m = decoder(y)
-            m_l = args.m_weight * criterion_de(m, message.to(device))
-            m_loss = m_loss + m_l
+                discri_x = discri(x)
+                discri_y = discri(y)
+                d_loss = criterion(discri_x, torch.ones_like(discri_x)) + criterion(discri_y,
+                                                                                    torch.zeros_like(discri_y))
+                discri_l = args.A_weight * d_loss
+                discri_loss = discri_loss + discri_l
 
-            l = vq_l + percep_l + discri_l + m_l
-            loss = loss + l
-            l.backward()
+                y = add_noise(y)
+                m = decoder(y)
+                m_l = args.m_weight * criterion_de(m, message.to(device))
+                m_loss = m_loss + m_l
 
-            optimizer_en.step()
-            optimizer_discri.step()
-            optimizer_de.step()
+                l = vq_l + percep_l + discri_l + m_l
+                loss = loss + l
+                l.backward()
 
-            if (batch_id + 1) % args.log_interval == 0:
-                mesg = "{}\tEpoch {}:\t[{}/{}]\ttotal loss: {:.6f}\tvisual quality: {:.6f}\t" \
-                       "perceptual: {:.6f}\tdiscriminator: {:.6f}\tmessage: {:.6f}".format(
-                    time.ctime(), e + 1, count, len(train_dataset), loss / (batch_id + 1), vq_loss / (batch_id + 1),
-                    percep_loss / (batch_id + 1), discri_loss / (batch_id + 1), m_loss / (batch_id + 1)
-                )
-                print(mesg)
+                optimizer_en.step()
+                optimizer_discri.step()
+                optimizer_de.step()
 
-            if args.checkpoint_model_dir is not None and (batch_id + 1) % args.checkpoint_interval == 0:
-                utils.save_model(encoder, decoder, discri, args, str(e), str(batch_id+1))
-                encoder.to(device).train()
-                decoder.to(device).train()
-                discri.to(device).train()
+                if (batch_id + 1) % args.log_interval == 0:
+                    mesg = "{}\tEpoch {}:\t[{}/{}]\ttotal loss: {:.6f}\tvisual quality: {:.6f}\t" \
+                           "perceptual: {:.6f}\tdiscriminator: {:.6f}\tmessage: {:.6f}".format(
+                        time.ctime(), e + 1, count, len(train_dataset), loss / (batch_id + 1), vq_loss / (batch_id + 1),
+                                      percep_loss / (batch_id + 1), discri_loss / (batch_id + 1),
+                                      m_loss / (batch_id + 1)
+                    )
+                    logger.info(mesg)
 
-    # save model
-    utils.save_model(encoder, decoder, discri, args)
+                if args.checkpoint_model_dir is not None and (batch_id + 1) % args.checkpoint_interval == 0:
+                    utils.save_model(encoder, decoder, discri, args, str(e), str(batch_id + 1))
+                    encoder.to(device).train()
+                    decoder.to(device).train()
+                    discri.to(device).train()
+                    logger.info('save model.')
+    except:
+        logger.exception("An error occurred:", exc_info=True)
+    finally:
+        logger.info("Training process completed (or possibly interrupted).")
+        # save model
+        utils.save_model(encoder, decoder, discri, args)
+        logger.info('save model at ' + args.checkpoint_model_dir)
 
-    print("\nDone, trained model saved at", args.checkpoint_model_dir)
+
 
 def main():
     main_arg_parser = argparse.ArgumentParser(description="parser for Digital watermarking")
