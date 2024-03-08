@@ -97,8 +97,8 @@ def train(args):
     transform = transforms.Compose([
         transforms.Resize(args.image_size),
         transforms.CenterCrop(args.image_size),
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: x.mul(255))
+        transforms.ToTensor(), # 数值在[0,1]
+        # transforms.Lambda(lambda x: x.mul(255))
     ])
     train_dataset = datasets.ImageFolder(args.dataset, transform)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size)
@@ -109,7 +109,7 @@ def train(args):
 
     vgg = Vgg16(requires_grad=False).to(device)
 
-    discri = Discriminator(args.image_size, args.image_size).to(device)
+    discri = Discriminator().to(device)
     optimizer_discri = Adam(discri.parameters(), args.lr)
     criterion = torch.nn.BCELoss()
 
@@ -141,8 +141,9 @@ def train(args):
 
                 x = x.to(device)
                 y = encoder(x, message)
-                y = utils.normalize_batch(y)
-                x = utils.normalize_batch(x)
+                y = torch.clamp(y, min=0, max=1)
+                # y = utils.normalize_batch(y)
+                # x = utils.normalize_batch(x)
 
                 vq_l = args.vq_weight * mse_loss(y, x)
                 vq_loss = vq_loss + vq_l
@@ -165,6 +166,7 @@ def train(args):
                 discri_loss = discri_loss + discri_l
 
                 y = add_noise(y)
+                y = torch.clamp(y, min=0, max=1)
                 m = decoder(y)
                 m_l = args.m_weight * criterion_de(m, message.to(device))
                 m_loss = m_loss + m_l
@@ -225,13 +227,13 @@ def main():
                                   help="random seed for training")
     train_arg_parser.add_argument("--vq_weight", type=float, default=5,
                                   help="weight for vq_loss, default is 5")
-    train_arg_parser.add_argument("--percep_weight", type=float, default=0.01,
-                                  help="weight for percep_loss, default is 0.01")
+    train_arg_parser.add_argument("--percep_weight", type=float, default=1,
+                                  help="weight for percep_loss, default is 1")
     train_arg_parser.add_argument("--A_weight", type=float, default=1,
                                   help="weight for A_loss, default is 1")
     train_arg_parser.add_argument("--m_weight", type=float, default=1,
                                   help="weight for m_loss, default is 1")
-    train_arg_parser.add_argument("--lr", type=float, default=1e-3,
+    train_arg_parser.add_argument("--lr", type=float, default=1e-4,
                                   help="learning rate, default is 1e-3")
     train_arg_parser.add_argument("--log-interval", type=int, default=500,
                                   help="number of images after which the training loss is logged, default is 500")

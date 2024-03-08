@@ -29,6 +29,7 @@ class Encoder(torch.nn.Module):
         self.relu = torch.nn.ReLU()
 
     def forward(self, X, M):
+        X = X - 0.5
         y = self.relu(self.in1(self.conv1(X)))
         y = self.res1(y)
 
@@ -37,6 +38,7 @@ class Encoder(torch.nn.Module):
         message_channel = torch.zeros((B, 1, H, W))
         for i, m in enumerate(M):
             message_channel[i, :, :, :] = m
+        message_channel = message_channel - 0.5
         y = torch.cat((y, message_channel.to(y.device)), dim=1)
 
         y = self.relu(self.in2(self.conv2(y)))
@@ -55,17 +57,17 @@ class Decoder(torch.nn.Module):
         super(Decoder, self).__init__()
         
         self.conv1 = ConvLayer(3, 32, kernel_size=3, stride=2)
-        self.in1 = torch.nn.InstanceNorm2d(32, affine=True)
+        self.bn1 = torch.nn.BatchNorm2d(32, affine=True)
         self.conv2 = ConvLayer(32, 32, kernel_size=3, stride=1)
-        self.in2 = torch.nn.InstanceNorm2d(32, affine=True)
+        self.bn2 = torch.nn.BatchNorm2d(32, affine=True)
         self.conv3 = ConvLayer(32, 64, kernel_size=3, stride=2)
-        self.in3 = torch.nn.InstanceNorm2d(64, affine=True)
+        self.bn3 = torch.nn.BatchNorm2d(64, affine=True)
         self.conv4 = ConvLayer(64, 64, kernel_size=3, stride=1)
-        self.in4 = torch.nn.InstanceNorm2d(64, affine=True)
+        self.bn4 = torch.nn.BatchNorm2d(64, affine=True)
         self.conv5 = ConvLayer(64, 128, kernel_size=3, stride=2)
-        self.in5 = torch.nn.InstanceNorm2d(128, affine=True)
+        self.bn5 = torch.nn.BatchNorm2d(128, affine=True)
         self.conv6 = ConvLayer(128, 128, kernel_size=3, stride=1)
-        self.in6 = torch.nn.InstanceNorm2d(128, affine=True)
+        self.bn6 = torch.nn.BatchNorm2d(128, affine=True)
         
         self.flatten = torch.nn.Flatten()
         self.fc1 = torch.nn.Linear(128 * 8 * 8, 512)  # 假设输入图像大小为 64 * 64
@@ -75,12 +77,13 @@ class Decoder(torch.nn.Module):
         self.relu = torch.nn.ReLU()
     
     def forward(self, y):
-        out = self.relu(self.in1(self.conv1(y)))
-        out = self.relu(self.in2(self.conv2(out)))
-        out = self.relu(self.in3(self.conv3(out)))
-        out = self.relu(self.in4(self.conv4(out)))
-        out = self.relu(self.in5(self.conv5(out)))
-        out = self.relu(self.in6(self.conv6(out)))
+        y = y - 0.5
+        out = self.relu(self.bn1(self.conv1(y)))
+        out = self.relu(self.bn2(self.conv2(out)))
+        out = self.relu(self.bn3(self.conv3(out)))
+        out = self.relu(self.bn4(self.conv4(out)))
+        out = self.relu(self.bn5(self.conv5(out)))
+        out = self.relu(self.bn6(self.conv6(out)))
         out = self.flatten(out)
         out = self.relu(self.fc1(out))
         out = self.fc2(out)
@@ -147,29 +150,29 @@ class UpsampleConvLayer(torch.nn.Module):
         return out
 
 class Discriminator(torch.nn.Module):
-    def __init__(self, H, W):
+    def __init__(self):
         super(Discriminator, self).__init__()
-        self.model = torch.nn.Sequential(
-            # input layer (3, H, W)
-            torch.nn.Linear(3*H*W, 1024),
-            torch.nn.LeakyReLU(0.2),
-            torch.nn.Dropout(0.3),
-            # hidden layer
-            torch.nn.Linear(1024, 512),
-            torch.nn.LeakyReLU(0.2),
-            torch.nn.Dropout(0.3),
-
-            torch.nn.Linear(512, 256),
-            torch.nn.LeakyReLU(0.2),
-            torch.nn.Dropout(0.3),
-            # output layer
-            torch.nn.Linear(256, 1),
-            torch.nn.Sigmoid()
-        )
+        self.conv1 = ConvLayer(3, 8, kernel_size=3, stride=2)
+        self.bn1 = torch.nn.BatchNorm2d(8, affine=True)
+        self.conv2 = ConvLayer(8, 16, kernel_size=3, stride=2)
+        self.bn2 = torch.nn.BatchNorm2d(16, affine=True)
+        self.conv3 = ConvLayer(16, 32, kernel_size=3, stride=2)
+        self.bn3 = torch.nn.BatchNorm2d(32, affine=True)
+        self.conv4 = ConvLayer(32, 64, kernel_size=3, stride=2)
+        self.bn4 = torch.nn.BatchNorm2d(64, affine=True)
+        self.global_avg_pool = torch.nn.AdaptiveAvgPool2d(1)
+        self.fc = torch.nn.Linear(64, 1)
+        self.relu = torch.nn.ReLU()
 
     def forward(self, x):
-        x = x.view(x.size(0), -1)
-        output = self.model(x)
+        x = x - 0.5
+        output = self.relu(self.bn1(self.conv1(x)))
+        output = self.relu(self.bn2(self.conv2(output)))
+        output = self.relu(self.bn3(self.conv3(output)))
+        output = self.relu(self.bn4(self.conv4(output)))
+        output = self.global_avg_pool(output)
+        output = output.view(output.size(0), -1)
+        output = torch.sigmoid(self.fc(output))
         return output
 
 
