@@ -85,7 +85,7 @@ def save_model(encoder, decoder, discri, args, e='end'):
     torch.save(encoder.state_dict(), discri_model_path)
 
 
-def eval_model(encoder, decoder, args):
+def eval_model(encoder, decoder, args, device):
     if args.eval_data is None:
         return
     encoder.eval()
@@ -103,6 +103,8 @@ def eval_model(encoder, decoder, args):
         img_correct = 0
         for batch_id, (x, message) in enumerate(eval_loader):
             img_total = img_total + len(x)
+            x = x.to(device)
+            message = message.to(device)
             y = encoder(x, message)
             y = torch.clamp(y, min=0, max=1)
             m = decoder(y)
