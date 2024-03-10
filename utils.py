@@ -68,19 +68,19 @@ def gram_matrix(y):
     gram = features.bmm(features_t) / (ch * h * w)
     return gram
 
-def save_model(encoder, decoder, discri, args, e='end', batch_id='none'):
+def save_model(encoder, decoder, discri, args, e='end'):
     encoder.eval().cpu()
-    encoder_model_filename = "encoder_epoch_" + e + "_batch_id_" + batch_id + ".pth"
+    encoder_model_filename = "encoder_epoch_" + e + ".pth"
     encoder_model_path = os.path.join(args.save_model_dir, encoder_model_filename)
     torch.save(encoder.state_dict(), encoder_model_path)
 
     decoder.eval().cpu()
-    decoder_model_filename = "decoder_epoch_" + e + "_batch_id_" + batch_id + ".pth"
+    decoder_model_filename = "decoder_epoch_" + e + ".pth"
     decoder_model_path = os.path.join(args.save_model_dir, decoder_model_filename)
     torch.save(decoder.state_dict(), decoder_model_path)
 
     discri.eval().cpu()
-    discri_model_filename = "discri_epoch_" + e + "_batch_id_" + batch_id + ".pth"
+    discri_model_filename = "discri_epoch_" + e + ".pth"
     discri_model_path = os.path.join(args.save_model_dir, discri_model_filename)
     torch.save(encoder.state_dict(), discri_model_path)
 

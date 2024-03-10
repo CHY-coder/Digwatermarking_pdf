@@ -212,13 +212,13 @@ def train(args):
                     logger.info(mesg)
                     print(mesg)
 
-                if args.save_model_dir is not None and (batch_id + 1) % args.checkpoint_interval == 0:
-                    utils.save_model(encoder, decoder, discri, args, str(e), str(batch_id + 1))
-                    encoder.to(device).train()
-                    decoder.to(device).train()
-                    discri.to(device).train()
-                    logger.info('save model.')
-                    print('save model.')
+            if args.save_model_dir is not None:
+                utils.save_model(encoder, decoder, discri, args, str(e), str(batch_id + 1))
+                encoder.to(device).train()
+                decoder.to(device).train()
+                discri.to(device).train()
+                logger.info('save model.')
+                print('save model.')
 
             img_total, img_correct = utils.eval_model(encoder, decoder, args)
             result = "{}\tEpoch {}:\t[{}/{}]\ttotal accuracy: {:.6f}\t".format(
