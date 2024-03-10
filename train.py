@@ -14,6 +14,8 @@ from torchvision import datasets
 from torchvision import transforms
 import torch.onnx
 import matplotlib.pyplot as plt
+from torch.nn import functional as F
+
 
 import utils
 from model import Encoder, Decoder, Discriminator, add_noise
@@ -73,12 +75,33 @@ def check_paths(args):
     try:
         if not os.path.exists(args.save_model_dir):
             os.makedirs(args.save_model_dir)
-        if args.checkpoint_model_dir is not None and not (os.path.exists(args.checkpoint_model_dir)):
-            os.makedirs(args.checkpoint_model_dir)
+        # if args.checkpoint_model_dir is not None and not (os.path.exists(args.checkpoint_model_dir)):
+        #     os.makedirs(args.checkpoint_model_dir)
     except OSError as e:
         print(e)
         sys.exit(1)
+def evaluate(args):
+    device = torch.device("cuda" if args.cuda else "cpu")
+    if args.img_scale != 1:
+        ori_image = utils.load_images(args.img_dir, scale=args.img_scale)
+    else:
+        ori_image = utils.load_images(args.img_dir, size=args.img_size)
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+    img_tensors = [transform(img) for img in ori_image]
+    img_tensors_batch = torch.stack(img_tensors, dim=0)
 
+    with torch.no_grad():
+        encoder = utils.load_model(args.encoder, device, 'encoder')
+        decoder = utils.load_model(args.decoder, device, 'decoder')
+        output = encoder(img_tensors_batch, args.message)
+        output = torch.clamp(output, min=0, max=1)
+        utils.save_images(output, args.output_image)
+        m = decoder(output)
+        probabilities = F.softmax(m, dim=1)
+        _, predicted_classes = probabilities.max(dim=1)
+        print(predicted_classes)
 
 def train(args):
     logger = setup_logger()
@@ -187,20 +210,29 @@ def train(args):
                                       m_loss / (batch_id + 1)
                     )
                     logger.info(mesg)
+                    print(mesg)
 
-                if args.checkpoint_model_dir is not None and (batch_id + 1) % args.checkpoint_interval == 0:
+                if args.save_model_dir is not None and (batch_id + 1) % args.checkpoint_interval == 0:
                     utils.save_model(encoder, decoder, discri, args, str(e), str(batch_id + 1))
                     encoder.to(device).train()
                     decoder.to(device).train()
                     discri.to(device).train()
                     logger.info('save model.')
+                    print('save model.')
+
+            img_total, img_correct = utils.eval_model(encoder, decoder, args)
+            result = "{}\tEpoch {}:\t[{}/{}]\ttotal accuracy: {:.6f}\t".format(
+                time.ctime(), e + 1, img_correct, img_total, img_correct / img_total
+            )
+            logger.info(result)
+            print(result)
     except:
         logger.exception("An error occurred:", exc_info=True)
     finally:
         logger.info("Training process completed (or possibly interrupted).")
         # save model
         utils.save_model(encoder, decoder, discri, args)
-        logger.info('save model at ' + args.checkpoint_model_dir)
+        logger.info('save model at ' + args.save_model_dir)
 
 
 
@@ -217,8 +249,8 @@ def main():
                                   help="path to training dataset(glyph image), the path should point to a folder ")
     train_arg_parser.add_argument("--save-model-dir", type=str, required=True,
                                   help="path to folder where trained model will be saved.")
-    train_arg_parser.add_argument("--checkpoint-model-dir", type=str, default='./model',
-                                  help="path to folder where checkpoints of trained models will be saved")
+    train_arg_parser.add_argument("--checkpoint", type=str, default=None,
+                                  help="Load checkpoint to initialize the model.")
     train_arg_parser.add_argument("--image-size", type=int, default=256,
                                   help="size of training images, default is 256 X 256")
     train_arg_parser.add_argument("--cuda", type=int, required=True,
@@ -239,19 +271,27 @@ def main():
                                   help="number of images after which the training loss is logged, default is 500")
     train_arg_parser.add_argument("--checkpoint-interval", type=int, default=1000,
                                   help="number of batches after which a checkpoint of the trained model will be created")
+    train_arg_parser.add_argument("--eval_data", type=str, default=None,
+                                  help="Evaluate dataset, default is None.")
 
     eval_arg_parser = subparsers.add_parser("eval", help="parser for evaluation arguments")
-    eval_arg_parser.add_argument("--image", type=str, required=True,
+    eval_arg_parser.add_argument("--img_dir", type=str, required=True,
                                  help="path to glyph image you want to add digital watermark")
     eval_arg_parser.add_argument("--output-image", type=str, required=True,
                                  help="path for saving the output glyph image")
-    eval_arg_parser.add_argument("--model", type=str, required=True,
-                                 help="saved model to be used for adding a digital watermark to glyph image. "
-                                      "If file ends in .pth - PyTorch path is used, if in .onnx - Caffe2 path")
+    eval_arg_parser.add_argument("--encoder", type=str, required=True,
+                                 help="saved encoder to be used for adding a digital watermark to glyph image. ")
+    eval_arg_parser.add_argument("--decoder", type=str, required=True,
+                                 help="saved decoder to be used for getting 0/1 message from glyph image. ")
     eval_arg_parser.add_argument("--cuda", type=int, default=False,
                                  help="set it to 1 for running on cuda, 0 for CPU")
-    eval_arg_parser.add_argument("--export_onnx", type=str,
-                                 help="export ONNX model to a given file")
+    eval_arg_parser.add_argument("--img_size", type=int, default=64,
+                                 help="set image size, default is 64")
+    eval_arg_parser.add_argument("--img_scale", type=int, default=1,
+                                 help="set image scale, default is 1")
+    eval_arg_parser.add_argument("--message", type=int, nargs='+',
+                                 help="set image message.")
+
 
     args = main_arg_parser.parse_args()
 
@@ -265,6 +305,8 @@ def main():
     if args.subcommand == "train":
         check_paths(args)
         train(args)
+    elif args.subcommand == "eval":
+        evaluate(args)
 
 if __name__ == "__main__":
     main()
