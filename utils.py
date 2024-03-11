@@ -97,7 +97,7 @@ def eval_model(encoder, decoder, args, device):
         # transforms.Lambda(lambda x: x.mul(255))
     ])
     eval_dataset = datasets.ImageFolder(args.eval_data, transform)
-    eval_loader = DataLoader(eval_dataset, batch_size=args.batch_size)
+    eval_loader = DataLoader(eval_dataset, batch_size=args.batch_size, shuffle=True)
     with torch.no_grad():
         img_total = 0
         img_correct = 0
