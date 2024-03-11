@@ -212,6 +212,13 @@ def train(args):
                     logger.info(mesg)
                     print(mesg)
 
+            img_total, img_correct = utils.eval_model(encoder, decoder, args, device)
+            result = "{}\tEpoch {}:\t[{}/{}]\ttotal accuracy: {:.6f}\t".format(
+                time.ctime(), e + 1, img_correct, img_total, img_correct / img_total
+            )
+            logger.info(result)
+            print(result)
+
             if args.save_model_dir is not None:
                 utils.save_model(encoder, decoder, discri, args, str(e))
                 encoder.to(device).train()
@@ -220,12 +227,6 @@ def train(args):
                 logger.info('save model.')
                 print('save model.')
 
-            img_total, img_correct = utils.eval_model(encoder, decoder, args, device)
-            result = "{}\tEpoch {}:\t[{}/{}]\ttotal accuracy: {:.6f}\t".format(
-                time.ctime(), e + 1, img_correct, img_total, img_correct / img_total
-            )
-            logger.info(result)
-            print(result)
     except:
         logger.exception("An error occurred:", exc_info=True)
     finally:
