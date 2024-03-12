@@ -8,12 +8,12 @@ class Encoder(torch.nn.Module):
         super(Encoder, self).__init__()
         # Initial convolution layers
         self.conv1 = ConvLayer(3, 32, kernel_size=9, stride=1)
-        self.in1 = torch.nn.InstanceNorm2d(32, affine=True)
+        self.bn1 = torch.nn.BatchNorm2d(32, affine=True)
         self.res1 = ResidualBlock(32)
         self.conv2 = ConvLayer(33, 64, kernel_size=3, stride=2)
-        self.in2 = torch.nn.InstanceNorm2d(64, affine=True)
+        self.bn2 = torch.nn.BatchNorm2d(64, affine=True)
         self.conv3 = ConvLayer(64, 128, kernel_size=3, stride=2)
-        self.in3 = torch.nn.InstanceNorm2d(128, affine=True)
+        self.bn3 = torch.nn.BatchNorm2d(128, affine=True)
         # Residual layers
         self.res2 = ResidualBlock(128)
         self.res3 = ResidualBlock(128)
@@ -21,16 +21,16 @@ class Encoder(torch.nn.Module):
         self.res5 = ResidualBlock(128)
         # Upsampling Layers
         self.deconv1 = UpsampleConvLayer(128, 64, kernel_size=3, stride=1, upsample=2)
-        self.in4 = torch.nn.InstanceNorm2d(64, affine=True)
+        self.bn4 = torch.nn.BatchNorm2d(64, affine=True)
         self.deconv2 = UpsampleConvLayer(64, 32, kernel_size=3, stride=1, upsample=2)
-        self.in5 = torch.nn.InstanceNorm2d(32, affine=True)
+        self.bn5 = torch.nn.BatchNorm2d(32, affine=True)
         self.deconv3 = ConvLayer(32, 3, kernel_size=9, stride=1)
         # Non-linearities
         self.relu = torch.nn.ReLU()
 
     def forward(self, X, M):
         X = X - 0.5
-        y = self.relu(self.in1(self.conv1(X)))
+        y = self.relu(self.bn1(self.conv1(X)))
         y = self.res1(y)
 
         # concatenate M(0/1)
@@ -41,14 +41,14 @@ class Encoder(torch.nn.Module):
         message_channel = message_channel - 0.5
         y = torch.cat((y, message_channel.to(y.device)), dim=1)
 
-        y = self.relu(self.in2(self.conv2(y)))
-        y = self.relu(self.in3(self.conv3(y)))
+        y = self.relu(self.bn2(self.conv2(y)))
+        y = self.relu(self.bn3(self.conv3(y)))
         y = self.res2(y)
         y = self.res3(y)
         y = self.res4(y)
         y = self.res5(y)
-        y = self.relu(self.in4(self.deconv1(y)))
-        y = self.relu(self.in5(self.deconv2(y)))
+        y = self.relu(self.bn4(self.deconv1(y)))
+        y = self.relu(self.bn5(self.deconv2(y)))
         y = self.deconv3(y)
         return y
 
@@ -114,15 +114,15 @@ class ResidualBlock(torch.nn.Module):
     def __init__(self, channels):
         super(ResidualBlock, self).__init__()
         self.conv1 = ConvLayer(channels, channels, kernel_size=3, stride=1)
-        self.in1 = torch.nn.InstanceNorm2d(channels, affine=True)
+        self.bn1 = torch.nn.BatchNorm2d(channels, affine=True)
         self.conv2 = ConvLayer(channels, channels, kernel_size=3, stride=1)
-        self.in2 = torch.nn.InstanceNorm2d(channels, affine=True)
+        self.bn2 = torch.nn.BatchNorm2d(channels, affine=True)
         self.relu = torch.nn.ReLU()
 
     def forward(self, x):
         residual = x
-        out = self.relu(self.in1(self.conv1(x)))
-        out = self.in2(self.conv2(out))
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
         out = out + residual
         return out
 
