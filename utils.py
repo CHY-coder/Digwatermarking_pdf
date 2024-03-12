@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 from torchvision import transforms
 from torch.nn import functional as F
+import random
 
 def load_images(directory, size=None, scale=None):
     images = []
@@ -113,5 +114,65 @@ def eval_model(encoder, decoder, args, device):
             img_correct = img_correct + sum(message == predicted_classes)
         return img_total, img_correct
 
+def perspective_img(imgs, d):
+    b, c, h, w = imgs.shape
+    tl_x = random.uniform(-d, d)  # Top left corner, top
+    tl_y = random.uniform(-d, d)  # Top left corner, left
+    bl_x = random.uniform(-d, d)  # Bot left corner, bot
+    bl_y = random.uniform(-d, d)  # Bot left corner, left
+    tr_x = random.uniform(-d, d)  # Top right corner, top
+    tr_y = random.uniform(-d, d)  # Top right corner, right
+    br_x = random.uniform(-d, d)  # Bot right corner, bot
+    br_y = random.uniform(-d, d)  # Bot right corner, right
 
+    rect = np.array([
+        [0, 0],
+        [w, 0],
+        [w, w],
+        [0, w]], dtype="float32")
+
+    dst = np.array([
+        [tl_x, tl_y],
+        [tr_x + w, tr_y],
+        [br_x + w, br_y + w],
+        [bl_x, bl_y + w]], dtype="float32")
+
+    out = transforms.functional.perspective(imgs, rect, dst, interpolation=Image.BILINEAR, fill=1)
+    return out
+
+def random_blur_kernel(probs, N_blur, sigrange_gauss, sigrange_line, wmin_line):
+    N = N_blur
+    coords = torch.stack(torch.meshgrid(torch.arange(N_blur), torch.arange(N_blur), indexing='ij'), -1) - (.5 * (N-1))
+    coords = coords.float()
+    manhat = torch.sum(torch.abs(coords), -1)
+
+    # nothing, default
+    vals_nothing = (manhat < .5).float()
+
+    # gauss
+    sig_gauss = torch.rand([]) * (sigrange_gauss[1] - sigrange_gauss[0]) + sigrange_gauss[0]
+    vals_gauss = torch.exp(-torch.sum(coords**2, -1) / 2.0 / sig_gauss**2)
+
+    # line
+    theta = torch.rand([]) * 2.0 * np.pi
+    v = torch.tensor([torch.cos(theta), torch.sin(theta)])
+    dists = torch.sum(coords * v, -1)
+
+    sig_line = torch.rand([]) * (sigrange_line[1] - sigrange_line[0]) + sigrange_line[0]
+    w_line = torch.rand([]) * (.5 * (N-1) + .1 - wmin_line) + wmin_line
+
+    vals_line = torch.exp(-dists**2 / 2.0 / sig_line**2) * (manhat < w_line).float()
+
+    # Select blur type based on probs
+    t = torch.rand([])
+    if t < probs[0]:
+        vals = vals_gauss
+    elif t < probs[0] + probs[1]:
+        vals = vals_line
+    else:
+        vals = vals_nothing
+
+    vals = vals / torch.sum(vals)
+
+    return vals
 
