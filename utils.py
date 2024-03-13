@@ -176,3 +176,55 @@ def random_blur_kernel(probs, N_blur, sigrange_gauss, sigrange_line, wmin_line):
 
     return vals
 
+def get_rnd_brightness_torch(rnd_bri, rnd_hue, batch_size):
+    # Generate random hue adjustments
+    rnd_hue = torch.rand((batch_size, 3, 1, 1), dtype=torch.float32) * (2 * rnd_hue) - rnd_hue
+    # Generate random brightness adjustments
+    rnd_brightness = torch.rand((batch_size, 1, 1, 1), dtype=torch.float32) * (2 * rnd_bri) - rnd_bri
+    # Return the combined adjustments
+    return rnd_hue + rnd_brightness
+def color_manipulation(encoded_image, args, global_step):
+    global_step = torch.tensor(global_step).float()
+    ramp_fn = lambda ramp: torch.min(global_step / ramp, torch.tensor(1.0))
+
+    rnd_bri = ramp_fn(args.rnd_bri_ramp) * args.rnd_bri
+    rnd_hue = ramp_fn(args.rnd_hue_ramp) * args.rnd_hue
+    rnd_brightness = get_rnd_brightness_torch(rnd_bri, rnd_hue, args.batch_size)
+
+    contrast_low = 1. - (1. - args.contrast_low) * ramp_fn(args.contrast_ramp)
+    contrast_high = 1. + (args.contrast_high - 1.) * ramp_fn(args.contrast_ramp)
+    contrast_params = [contrast_low, contrast_high]
+
+    rnd_sat = torch.rand(1) * ramp_fn(args.rnd_sat_ramp) * args.rnd_sat
+
+    contrast_scale = torch.rand(encoded_image.size(0), device=encoded_image.device) * (
+                contrast_params[1] - contrast_params[0]) + contrast_params[0]
+    contrast_scale = contrast_scale.view(-1, 1, 1, 1)
+
+    encoded_image = encoded_image * contrast_scale
+    encoded_image = encoded_image + rnd_brightness
+    encoded_image = torch.clamp(encoded_image, 0, 1)
+
+    # 计算亮度图
+    lum_weights = torch.tensor([0.3, 0.6, 0.1], device=encoded_image.device).view(1, 3, 1, 1)
+    encoded_image_lum = torch.sum(encoded_image * lum_weights, dim=1, keepdim=True)
+
+    # 调整饱和度
+    encoded_image = (1 - rnd_sat) * encoded_image + rnd_sat * encoded_image_lum
+
+    # 如果需要改变图像大小
+    # encoded_image = encoded_image.view(-1, 3, 400, 400)
+
+    return encoded_image
+
+def noise(encoded_image, args, global_step):
+    global_step = torch.tensor(global_step).float()
+    ramp_fn = lambda ramp: torch.min(global_step / ramp, torch.tensor(1.0))
+
+    rnd_noise = torch.rand([]) * ramp_fn(args.rnd_noise_ramp) * args.rnd_noise
+    noise = torch.normal(mean=0.0, std=rnd_noise, size=encoded_image.size())
+    encoded_image = encoded_image + noise
+    encoded_image = torch.clamp(encoded_image, 0, 1)
+
+    return encoded_image
+
