@@ -94,6 +94,7 @@ def eval_model(encoder, decoder, args, device):
     transform = transforms.Compose([
         transforms.Resize(args.image_size),
         transforms.CenterCrop(args.image_size),
+        transforms.Grayscale(num_output_channels=1),
         transforms.ToTensor(),  # 数值在[0,1]
         # transforms.Lambda(lambda x: x.mul(255))
     ])
