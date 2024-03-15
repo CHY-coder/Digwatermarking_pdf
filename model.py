@@ -7,7 +7,7 @@ class Encoder(torch.nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
         # Initial convolution layers
-        self.conv1 = ConvLayer(3, 32, kernel_size=9, stride=1)
+        self.conv1 = ConvLayer(1, 32, kernel_size=9, stride=1)
         self.bn1 = torch.nn.BatchNorm2d(32, affine=True)
         self.res1 = ResidualBlock(32)
         self.conv2 = ConvLayer(33, 64, kernel_size=3, stride=2)
@@ -24,7 +24,7 @@ class Encoder(torch.nn.Module):
         self.bn4 = torch.nn.BatchNorm2d(64, affine=True)
         self.deconv2 = UpsampleConvLayer(64, 32, kernel_size=3, stride=1, upsample=2)
         self.bn5 = torch.nn.BatchNorm2d(32, affine=True)
-        self.deconv3 = ConvLayer(32, 3, kernel_size=9, stride=1)
+        self.deconv3 = ConvLayer(32, 1, kernel_size=9, stride=1)
         # Non-linearities
         self.relu = torch.nn.ReLU()
 
@@ -56,7 +56,7 @@ class Decoder(torch.nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
         
-        self.conv1 = ConvLayer(3, 32, kernel_size=3, stride=2)
+        self.conv1 = ConvLayer(1, 32, kernel_size=3, stride=2)
         self.bn1 = torch.nn.BatchNorm2d(32, affine=True)
         self.conv2 = ConvLayer(32, 32, kernel_size=3, stride=1)
         self.bn2 = torch.nn.BatchNorm2d(32, affine=True)
@@ -152,7 +152,7 @@ class UpsampleConvLayer(torch.nn.Module):
 class Discriminator(torch.nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.conv1 = ConvLayer(3, 8, kernel_size=3, stride=2)
+        self.conv1 = ConvLayer(1, 8, kernel_size=3, stride=2)
         self.bn1 = torch.nn.BatchNorm2d(8, affine=True)
         self.conv2 = ConvLayer(8, 16, kernel_size=3, stride=2)
         self.bn2 = torch.nn.BatchNorm2d(16, affine=True)

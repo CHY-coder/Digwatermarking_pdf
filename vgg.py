@@ -25,6 +25,10 @@ class Vgg16(torch.nn.Module):
                 param.requires_grad = False
 
     def forward(self, X):
+        if X.size(1) == 1:
+            # 将单通道图像复制到三个通道
+            X = X.repeat(1, 3, 1, 1)
+
         h = self.slice1(X)
         h_relu1_2 = h
         h = self.slice2(h)
