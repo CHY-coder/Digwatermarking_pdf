@@ -35,7 +35,7 @@ def load_model(path, device, name):
     model.eval()
     return model
 
-def save_images(tensor, directory, filename_prefix="image_", file_format="png"):
+def save_images(tensor, directory, filename_prefix="image_", file_format="png", name="0"):
     """
     将归一化的 (b, c, h, w) 形状的 PyTorch Tensor 存储为图像文件。
 
@@ -56,9 +56,10 @@ def save_images(tensor, directory, filename_prefix="image_", file_format="png"):
         img *= 255  # 将归一化数据转换回 0-255 范围
         img = img.astype(np.uint8)  # 转换为 uint8 类型
         img = img.transpose(1, 2, 0)  # 将 (c, h, w) 转换为 (h, w, c) 方便 PIL 处理
+        img = img.squeeze() # 适应于单通道
 
-        pil_image = Image.fromarray(img)
-        file_path = os.path.join(directory, f"{filename_prefix}{i}.{file_format}")
+        pil_image = Image.fromarray(img, mode='L')
+        file_path = os.path.join(directory, f"{filename_prefix}{name}-{i}.{file_format}")
         pil_image.save(file_path)
 
 
