@@ -93,8 +93,7 @@ def eval_model(encoder, decoder, args, device):
     encoder.eval()
     decoder.eval()
     transform = transforms.Compose([
-        transforms.Resize(args.image_size),
-        transforms.CenterCrop(args.image_size),
+        transforms.Resize((args.image_size, args.image_size)),
         transforms.Grayscale(num_output_channels=1),
         transforms.ToTensor(),  # 数值在[0,1]
         # transforms.Lambda(lambda x: x.mul(255))
@@ -103,7 +102,8 @@ def eval_model(encoder, decoder, args, device):
     eval_loader = DataLoader(eval_dataset, batch_size=args.batch_size, shuffle=True)
     with torch.no_grad():
         img_total = 0
-        img_correct = 0
+        img0_correct = 0
+        img1_correct = 0
         for batch_id, (x, message) in enumerate(eval_loader):
             img_total = img_total + len(x)
             x = x.to(device)
@@ -113,8 +113,9 @@ def eval_model(encoder, decoder, args, device):
             m = decoder(y)
             probabilities = F.softmax(m, dim=1)
             _, predicted_classes = probabilities.max(dim=1)
-            img_correct = img_correct + sum(message == predicted_classes)
-        return img_total, img_correct
+            img1_correct = img1_correct + ((message == 1) & (message == predicted_classes)).float().sum().item()
+            img0_correct = img0_correct + ((message == 0) & (message == predicted_classes)).float().sum().item()
+        return img_total / 2, img1_correct, img0_correct
 
 def perspective_img(imgs, d):
     b, c, h, w = imgs.shape

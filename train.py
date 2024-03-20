@@ -119,8 +119,7 @@ def train(args):
     torch.manual_seed(args.seed)
 
     transform = transforms.Compose([
-        transforms.Resize(args.image_size),
-        transforms.CenterCrop(args.image_size),
+        transforms.Resize((args.image_size, args.image_size)),
         transforms.Grayscale(num_output_channels=1), # 单通道
         transforms.ToTensor(), # 数值在[0,1]
         # transforms.Lambda(lambda x: x.mul(255))
@@ -214,9 +213,9 @@ def train(args):
                     logger.info(mesg)
                     print(mesg)
 
-            img_total, img_correct = utils.eval_model(encoder, decoder, args, device)
-            result = "{}\tEpoch {}:\t[{}/{}]\ttotal accuracy: {:.6f}\t".format(
-                time.ctime(), e + 1, img_correct, img_total, img_correct / img_total
+            img_total, img1_correct, img0_correct = utils.eval_model(encoder, decoder, args, device)
+            result = "{}\tEpoch {}:\tmessage 1 [{}/{}]\taccuracy: {:.6f}\tmessage 0 [{}/{}]\taccuracy: {:.6f}\t".format(
+                time.ctime(), e + 1, img1_correct, img_total, img1_correct / img_total, img0_correct, img_total, img0_correct / img_total
             )
             logger.info(result)
             print(result)
@@ -244,8 +243,8 @@ def main():
     subparsers = main_arg_parser.add_subparsers(title="subcommands", dest="subcommand")
 
     train_arg_parser = subparsers.add_parser("train", help="parser for training arguments")
-    train_arg_parser.add_argument("--epochs", type=int, default=20,
-                                  help="number of training epochs, default is 2")
+    train_arg_parser.add_argument("--epochs", type=int, default=10,
+                                  help="number of training epochs, default is 10")
     train_arg_parser.add_argument("--batch-size", type=int, default=16,
                                   help="batch size for training, default is 16")
     train_arg_parser.add_argument("--dataset", type=str, required=True,
