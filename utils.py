@@ -21,14 +21,14 @@ def showimg(img_tensor):
 def load_images(directory, size=None, scale=None):
     images = []
     for filename in glob.glob(os.path.join(directory, '*.[pP][nN][gG]'), recursive=True):
-        img = Image.open(filename).convert('RGB')
+        img = Image.open(filename).convert('L')
         if size is not None:
-            img = img.resize((size, size), Image.ANTIALIAS)
+            img = img.resize((size, size), Image.LANCZOS)
         elif scale is not None:
             img_width, img_height = img.size
             new_width = int(img_width / scale)
             new_height = int(img_height / scale)
-            img = img.resize((new_width, new_height), Image.ANTIALIAS)
+            img = img.resize((new_width, new_height), Image.LANCZOS)
         images.append(img)
     return images
 
