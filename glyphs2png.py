@@ -1,4 +1,5 @@
 import fontforge
+import argparse
 
 def export_glyphs_to_png(font_path, output_dir, pixel_height=64):
     font = fontforge.open(font_path)
@@ -7,7 +8,9 @@ def export_glyphs_to_png(font_path, output_dir, pixel_height=64):
         glyph.export(output_path, pixel_height)
     font.close()
 
-# 调用函数
-font_path = "./simsun.ttc"  # 字体文件路径
-output_dir = "./output_png"  # 输出目录路径
-export_glyphs_to_png(font_path, output_dir)
+parser = argparse.ArgumentParser(description="parser for glyphs to png.")
+parser.add_argument("--font_path", type=str, default="./simsun.ttc", help="glyphs path.")
+parser.add_argument("--output_dir", type=str, default="./png64", help="output png path.")
+parser.add_argument("--pixel", type=int, default=64, help="set pixel height.")
+args = parser.parse_args()
+export_glyphs_to_png(args.font_path, args.output_dir, args.pixel)

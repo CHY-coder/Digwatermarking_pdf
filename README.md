@@ -4,6 +4,7 @@
 ## You must install fontforge when use glyphs2svg and glyphs2png.
 ```
 sudo apt-get install fontforge
+sudo apt-get install python3-fontforge
 
 way 1
 export PYTHONPATH=$PYTHONPATH:/usr/lib/python3/dist-packages
