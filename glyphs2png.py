@@ -1,11 +1,22 @@
 import fontforge
 import argparse
+import os
 
 def export_glyphs_to_png(font_path, output_dir, pixel_height=64):
     font = fontforge.open(font_path)
+
+    img0_path = os.path.join(output_dir, '0')
+    img1_path = os.path.join(output_dir, '1')
+    if not os.path.exists(img0_path):
+        os.makedirs(img0_path)
+    if not os.path.exists(img1_path):
+        os.makedirs(img1_path)
+
     for glyph in font.glyphs():
-        output_path = f"{output_dir}/{glyph.glyphname}.png"
-        glyph.export(output_path, pixel_height)
+        output_path0 = f"{img0_path}/{glyph.glyphname}.png"
+        output_path1 = f"{img1_path}/{glyph.glyphname}.png"
+        glyph.export(output_path0, pixel_height)
+        glyph.export(output_path1, pixel_height)
     font.close()
 
 parser = argparse.ArgumentParser(description="parser for glyphs to png.")
