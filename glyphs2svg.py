@@ -3,6 +3,12 @@ import os
 import re
 import argparse
 
+def set_width(glyph, width):
+    delta = width - glyph.width
+    glyph.left_side_bearing = round(glyph.left_side_bearing + delta / 2)
+    glyph.right_side_bearing = round(glyph.right_side_bearing + delta - glyph.left_side_bearing)
+    glyph.width = width
+
 def adjust_svg_viewbox(svg_content, canvas_size=256):
     # 构建新的 viewBox 字符串
     new_viewbox = f'viewBox="0 0 {canvas_size} {canvas_size}"'
@@ -16,9 +22,8 @@ def export_glyphs_to_svg_with_viewbox(font_path, output_dir, canvas_size=256):
         os.makedirs(output_dir)
 
     for glyph in font.glyphs():
-        # bbox = glyph.boundingBox()
-        # if bbox[2] - bbox[0] == 0 or bbox[3] - bbox[1] == 0:
-        #     continue
+        if glyph.width != 256:
+            set_width(glyph,width=256)
         file_name = f"{glyph.glyphname}.svg"
         file_path = os.path.join(output_dir, file_name)
         glyph.export(file_path)

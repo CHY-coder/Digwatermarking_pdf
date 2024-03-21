@@ -2,6 +2,11 @@ import fontforge
 import argparse
 import os
 
+def set_width(glyph, width):
+    delta = width - glyph.width
+    glyph.left_side_bearing = round(glyph.left_side_bearing + delta / 2)
+    glyph.right_side_bearing = round(glyph.right_side_bearing + delta - glyph.left_side_bearing)
+    glyph.width = width
 def export_glyphs_to_png(font_path, output_dir, pixel_height=64):
     font = fontforge.open(font_path)
 
@@ -13,6 +18,7 @@ def export_glyphs_to_png(font_path, output_dir, pixel_height=64):
         os.makedirs(img1_path)
 
     for glyph in font.glyphs():
+        set_width(glyph, width=256)
         output_path0 = f"{img0_path}/{glyph.glyphname}.png"
         output_path1 = f"{img1_path}/{glyph.glyphname}.png"
         glyph.export(output_path0, pixel_height)
