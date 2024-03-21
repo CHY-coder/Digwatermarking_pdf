@@ -2,7 +2,7 @@ import torch
 from PIL import Image
 import os
 import glob
-from model import Encoder, Decoder
+from model import Encoder, Decoder, Discriminator
 import numpy as np
 from torch.utils.data import DataLoader
 from torchvision import datasets
@@ -37,6 +37,8 @@ def load_model(path, device, name):
         model = Encoder()
     elif name == 'decoder':
         model = Decoder()
+    elif name == 'discriminator':
+        model = Discriminator()
     model_dict = torch.load(path)
     model.load_state_dict(model_dict)
     model.to(device)
@@ -92,7 +94,7 @@ def save_model(encoder, decoder, discri, args, e='end'):
     discri.eval().cpu()
     discri_model_filename = "discri_epoch_" + e + ".pth"
     discri_model_path = os.path.join(args.save_model_dir, discri_model_filename)
-    torch.save(encoder.state_dict(), discri_model_path)
+    torch.save(discri.state_dict(), discri_model_path)
 
 
 def eval_model(encoder, decoder, args, device):

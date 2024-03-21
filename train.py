@@ -120,18 +120,26 @@ def train(args):
     train_dataset = datasets.ImageFolder(args.dataset, transform)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 
-    encoder = Encoder().to(device)
+    if args.en_checkpoint is not None and os.path.exists(args.en_checkpoint):
+        encoder = utils.load_model(args.en_checkpoint, device, "encoder")
+    else:
+        encoder = Encoder().to(device)
     optimizer_en = Adam(encoder.parameters(), args.lr)
     mse_loss = torch.nn.MSELoss()
 
     vgg = Vgg16(requires_grad=False).to(device)
 
-    discri = Discriminator().to(device)
+    if args.disc_checkpoint is not None and os.path.exists(args.disc_checkpoint):
+        discri = utils.load_model(args.disc_checkpoint, device, "discriminator")
+    else:
+        discri = Discriminator().to(device)
     optimizer_discri = Adam(discri.parameters(), args.lr)
     criterion = torch.nn.BCELoss()
 
-
-    decoder = Decoder().to(device)
+    if args.de_checkpoint is not None and os.path.exists(args.de_checkpoint):
+        decoder = utils.load_model(args.de_checkpoint, device, "decoder")
+    else:
+        decoder = Decoder().to(device)
     optimizer_de = Adam(decoder.parameters(), args.lr)
     criterion_de = torch.nn.CrossEntropyLoss()
 
@@ -268,8 +276,12 @@ def main():
                                   help="learning rate, default is 1e-4")
     train_arg_parser.add_argument("--log-interval", type=int, default=500,
                                   help="number of images after which the training loss is logged, default is 500")
-    train_arg_parser.add_argument("--checkpoint-interval", type=int, default=1000,
-                                  help="number of batches after which a checkpoint of the trained model will be created")
+    train_arg_parser.add_argument("--en_checkpoint", type=str, default=None,
+                                  help="provide encoder checkpoint path to continue training.")
+    train_arg_parser.add_argument("--de_checkpoint", type=str, default=None,
+                                  help="provide decoder checkpoint path to continue training.")
+    train_arg_parser.add_argument("--disc_checkpoint", type=str, default=None,
+                                  help="provide discriminator checkpoint path to continue training.")
     train_arg_parser.add_argument("--eval_data", type=str, default=None,
                                   help="Evaluate dataset, default is None.")
 
@@ -325,6 +337,7 @@ def main():
         sys.exit(1)
 
     if args.subcommand == "train":
+        args.save_model_dir = os.path.join(args.save_model_dir, datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
         check_paths(args)
         train(args)
     elif args.subcommand == "eval":
