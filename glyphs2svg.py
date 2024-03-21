@@ -1,29 +1,36 @@
 import fontforge
 import os
-import psMat
+import re
 
-def export_glyphs_to_svg(font_path, output_dir, glyph_size=64):
-    # 加载字体文件
+def adjust_svg_viewbox(svg_content, canvas_size=256):
+    # 构建新的 viewBox 字符串
+    new_viewbox = f'viewBox="0 0 {canvas_size} {canvas_size}"'
+    # 使用正则表达式查找并替换 viewBox 属性
+    svg_content = re.sub(r'viewBox="[^"]*"', new_viewbox, svg_content, count=1)
+    return svg_content
+
+def export_glyphs_to_svg_with_viewbox(font_path, output_dir, canvas_size=256):
     font = fontforge.open(font_path)
-    
-    # 确保输出目录存在
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
-    # 遍历字体中的所有字形
+
     for glyph in font.glyphs():
-        # 设置导出的 SVG 的大小
-        glyph.transform(psMat.scale(glyph_size / glyph.width))
-        # 设置文件名：原字形的名称 + ".svg"
-        file_name = "{}.svg".format(glyph.glyphname)
+        # bbox = glyph.boundingBox()
+        # if bbox[2] - bbox[0] == 0 or bbox[3] - bbox[1] == 0:
+        #     continue
+        file_name = f"{glyph.glyphname}.svg"
         file_path = os.path.join(output_dir, file_name)
-        # 导出字形为 SVG 文件
         glyph.export(file_path)
 
-# 字体文件路径
-font_path = "./simsun.ttc"
-# 输出目录
-output_dir = "./svg64"
-# 导出字形为 SVG
-export_glyphs_to_svg(font_path, output_dir)
+        with open(file_path, 'r') as file:
+            svg_data = file.read()
 
+        svg_data = adjust_svg_viewbox(svg_data, canvas_size)
+
+        with open(file_path, 'w') as file:
+            file.write(svg_data)
+
+font_path = "./simsun.ttc"  # 替换为你的字体文件路径
+output_dir = "./svg256"  # 替换为你的输出目录
+canvas_size = 256
+export_glyphs_to_svg_with_viewbox(font_path, output_dir, canvas_size)
