@@ -106,12 +106,7 @@ def train(args):
     logger = setup_logger()
     logger.info("Training process started.")
 
-    if args.cuda:
-        device = torch.device("cuda")
-    # elif args.mps:
-    #     device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
+    device = torch.device(args.device)
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -243,18 +238,18 @@ def main():
     train_arg_parser = subparsers.add_parser("train", help="parser for training arguments")
     train_arg_parser.add_argument("--epochs", type=int, default=10,
                                   help="number of training epochs, default is 10")
-    train_arg_parser.add_argument("--batch-size", type=int, default=16,
-                                  help="batch size for training, default is 16")
+    train_arg_parser.add_argument("--batch-size", type=int, default=8,
+                                  help="batch size for training, default is 8")
     train_arg_parser.add_argument("--dataset", type=str, required=True,
                                   help="path to training dataset(glyph image), the path should point to a folder ")
     train_arg_parser.add_argument("--save-model-dir", type=str, required=True,
                                   help="path to folder where trained model will be saved.")
     train_arg_parser.add_argument("--checkpoint", type=str, default=None,
                                   help="Load checkpoint to initialize the model.")
-    train_arg_parser.add_argument("--image-size", type=int, default=256,
-                                  help="size of training images, default is 256 X 256")
-    train_arg_parser.add_argument("--cuda", type=int, required=True,
-                                  help="set it to 1 for running on GPU, 0 for CPU")
+    train_arg_parser.add_argument("--image-size", type=int, default=64,
+                                  help="size of training images, default is 64 X 64")
+    train_arg_parser.add_argument("--device", type=str, required='cpu',
+                                  help="set device, e.g cup/cuda/cuda:1")
     train_arg_parser.add_argument("--seed", type=int, default=42,
                                   help="random seed for training")
     train_arg_parser.add_argument("--vq_weight", type=float, default=5,
@@ -266,7 +261,7 @@ def main():
     train_arg_parser.add_argument("--m_weight", type=float, default=1,
                                   help="weight for m_loss, default is 1")
     train_arg_parser.add_argument("--lr", type=float, default=1e-4,
-                                  help="learning rate, default is 1e-3")
+                                  help="learning rate, default is 1e-4")
     train_arg_parser.add_argument("--log-interval", type=int, default=500,
                                   help="number of images after which the training loss is logged, default is 500")
     train_arg_parser.add_argument("--checkpoint-interval", type=int, default=1000,
@@ -298,7 +293,7 @@ def main():
     if args.subcommand is None:
         print("ERROR: specify either train or eval")
         sys.exit(1)
-    if args.cuda and not torch.cuda.is_available():
+    if args.device.startswith('cuda') and not torch.cuda.is_available():
         print("ERROR: cuda is not available, try running on CPU")
         sys.exit(1)
 
