@@ -16,7 +16,7 @@ from torch.nn import functional as F
 
 
 import utils
-from model import Encoder, Decoder, Discriminator, add_noise
+from model import Encoder, Decoder, Discriminator, add_noise, add_noise2
 from vgg import Vgg16
 
 # 设置日志格式
@@ -135,6 +135,8 @@ def train(args):
     optimizer_de = Adam(decoder.parameters(), args.lr)
     criterion_de = torch.nn.CrossEntropyLoss()
 
+    global_step = 0
+
     try:
         for e in range(args.epochs):
 
@@ -184,6 +186,7 @@ def train(args):
 
                 y = add_noise(y)
                 y = torch.clamp(y, min=0, max=1)
+                # y = add_noise2(y, args, global_step)
                 m = decoder(y)
                 m_l = args.m_weight * criterion_de(m, message.to(device))
                 m_loss = m_loss + m_l
@@ -195,6 +198,7 @@ def train(args):
                 optimizer_en.step()
                 optimizer_discri.step()
                 optimizer_de.step()
+                global_step = global_step + 1
 
                 if (batch_id + 1) % args.log_interval == 0:
                     mesg = "{}\tEpoch {}:\t[{}/{}]\ttotal loss: {:.6f}\tvisual quality: {:.6f}\t" \
@@ -268,6 +272,29 @@ def main():
                                   help="number of batches after which a checkpoint of the trained model will be created")
     train_arg_parser.add_argument("--eval_data", type=str, default=None,
                                   help="Evaluate dataset, default is None.")
+
+    train_arg_parser.add_argument('--rnd_bri_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--rnd_sat_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--rnd_hue_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--rnd_noise_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--contrast_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--rnd_resize_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--rnd_trans_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--rnd_scal_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--rnd_rot_ramp', type=int, default=1000)
+    train_arg_parser.add_argument('--rnd_perspec_ramp', type=int, default=1000)
+
+    train_arg_parser.add_argument('--rnd_bri', type=float, default=.3)
+    train_arg_parser.add_argument('--rnd_noise', type=float, default=.02)
+    train_arg_parser.add_argument('--rnd_sat', type=float, default=1.0)
+    train_arg_parser.add_argument('--rnd_hue', type=float, default=.1)
+    train_arg_parser.add_argument('--contrast_low', type=float, default=.5)
+    train_arg_parser.add_argument('--contrast_high', type=float, default=1.5)
+    train_arg_parser.add_argument('--rnd_resize', type=float, default=.1)
+    train_arg_parser.add_argument('--rnd_trans', type=float, default=0.2)
+    train_arg_parser.add_argument('--rnd_scal', type=float, default=.1)
+    train_arg_parser.add_argument('--rnd_rot', type=float, default=30)
+    train_arg_parser.add_argument('--rnd_perspec', type=float, default=0.1)
 
     eval_arg_parser = subparsers.add_parser("eval", help="parser for evaluation arguments")
     eval_arg_parser.add_argument("--img_dir", type=str, required=True,

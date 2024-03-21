@@ -9,6 +9,14 @@ from torchvision import datasets
 from torchvision import transforms
 from torch.nn import functional as F
 import random
+import matplotlib.pyplot as plt
+
+def showimg(img_tensor):
+    # 将图像从(c, h, w)转换为(h, w, c)以符合matplotlib的图像格式
+    for i in range(0, img_tensor.shape[0]):
+        img_to_show = img_tensor[i].permute(1, 2, 0).numpy()
+        plt.imshow(img_to_show)
+        plt.show()
 
 def load_images(directory, size=None, scale=None):
     images = []
@@ -117,8 +125,8 @@ def eval_model(encoder, decoder, args, device):
             img0_correct = img0_correct + ((message == 0) & (message == predicted_classes)).float().sum().item()
         return img_total / 2, img1_correct, img0_correct
 
-def perspective_img(imgs, d):
-    b, c, h, w = imgs.shape
+def perspective_img(imgs, w, rate):
+    d = w * rate
     tl_x = random.uniform(-d, d)  # Top left corner, top
     tl_y = random.uniform(-d, d)  # Top left corner, left
     bl_x = random.uniform(-d, d)  # Bot left corner, bot
@@ -141,6 +149,7 @@ def perspective_img(imgs, d):
         [bl_x, bl_y + w]], dtype="float32")
 
     out = transforms.functional.perspective(imgs, rect, dst, interpolation=Image.BILINEAR, fill=1)
+    out = torch.clamp(out, 0, 1)
     return out
 
 def random_blur_kernel(probs, N_blur, sigrange_gauss, sigrange_line, wmin_line):
@@ -181,31 +190,29 @@ def random_blur_kernel(probs, N_blur, sigrange_gauss, sigrange_line, wmin_line):
 
 def get_rnd_brightness_torch(rnd_bri, rnd_hue, batch_size):
     # Generate random hue adjustments
-    rnd_hue = torch.rand((batch_size, 3, 1, 1), dtype=torch.float32) * (2 * rnd_hue) - rnd_hue
+    rnd_hue = torch.rand((batch_size, 1, 1, 1), dtype=torch.float32) * (2 * rnd_hue) - rnd_hue
     # Generate random brightness adjustments
     rnd_brightness = torch.rand((batch_size, 1, 1, 1), dtype=torch.float32) * (2 * rnd_bri) - rnd_bri
     # Return the combined adjustments
     return rnd_hue + rnd_brightness
-def color_manipulation(encoded_image, args, global_step):
-    global_step = torch.tensor(global_step).float()
-    ramp_fn = lambda ramp: torch.min(global_step / ramp, torch.tensor(1.0))
-
+def color_manipulation(encoded_image, args, ramp_fn):
     rnd_bri = ramp_fn(args.rnd_bri_ramp) * args.rnd_bri
     rnd_hue = ramp_fn(args.rnd_hue_ramp) * args.rnd_hue
-    rnd_brightness = get_rnd_brightness_torch(rnd_bri, rnd_hue, args.batch_size)
+    rnd_brightness = get_rnd_brightness_torch(rnd_bri, rnd_hue, encoded_image.size(0))
 
     contrast_low = 1. - (1. - args.contrast_low) * ramp_fn(args.contrast_ramp)
     contrast_high = 1. + (args.contrast_high - 1.) * ramp_fn(args.contrast_ramp)
     contrast_params = [contrast_low, contrast_high]
 
     rnd_sat = torch.rand(1) * ramp_fn(args.rnd_sat_ramp) * args.rnd_sat
+    rnd_sat = rnd_sat.to(encoded_image.device)
 
     contrast_scale = torch.rand(encoded_image.size(0), device=encoded_image.device) * (
                 contrast_params[1] - contrast_params[0]) + contrast_params[0]
     contrast_scale = contrast_scale.view(-1, 1, 1, 1)
 
     encoded_image = encoded_image * contrast_scale
-    encoded_image = encoded_image + rnd_brightness
+    encoded_image = encoded_image + rnd_brightness.to(encoded_image.device)
     encoded_image = torch.clamp(encoded_image, 0, 1)
 
     # 计算亮度图
@@ -215,19 +222,39 @@ def color_manipulation(encoded_image, args, global_step):
     # 调整饱和度
     encoded_image = (1 - rnd_sat) * encoded_image + rnd_sat * encoded_image_lum
 
-    # 如果需要改变图像大小
-    # encoded_image = encoded_image.view(-1, 3, 400, 400)
-
-    return encoded_image
-
-def noise(encoded_image, args, global_step):
-    global_step = torch.tensor(global_step).float()
-    ramp_fn = lambda ramp: torch.min(global_step / ramp, torch.tensor(1.0))
-
-    rnd_noise = torch.rand([]) * ramp_fn(args.rnd_noise_ramp) * args.rnd_noise
-    noise = torch.normal(mean=0.0, std=rnd_noise, size=encoded_image.size())
-    encoded_image = encoded_image + noise
     encoded_image = torch.clamp(encoded_image, 0, 1)
 
     return encoded_image
+
+def noise(encoded_image, rnd_noise):
+    noise = torch.normal(mean=0.0, std=rnd_noise, size=encoded_image.size())
+    encoded_image = encoded_image + noise.to(encoded_image.device)
+    encoded_image = torch.clamp(encoded_image, 0, 1)
+
+    return encoded_image
+
+def apply_transformations(input_tensor, args, ramp_fn, H, W):
+    # Resizing
+    rnd_rate = torch.rand(2) * ramp_fn(args.rnd_resize_ramp) * args.rnd_resize
+    new_H = random.randint(int(H * (1 - rnd_rate[0])), int(H * (1 + rnd_rate[0])))
+    new_W = random.randint(int(W * (1 - rnd_rate[1])), int(W * (1 + rnd_rate[1])))
+    resize_transform = transforms.Resize((new_H, new_W))
+    resized_tensor = resize_transform(input_tensor)
+    resized_tensor = torch.clamp(resized_tensor, 0, 1)
+
+    rnd_trans_rate = torch.rand(2) * ramp_fn(args.rnd_trans_ramp) * args.rnd_trans
+    rnd_scal_rate = torch.rand([]) * ramp_fn(args.rnd_scal_ramp) * args.rnd_scal
+    angle = torch.rand([]) * ramp_fn(args.rnd_rot_ramp) * args.rnd_rot
+    trans = transforms.Compose([
+        transforms.RandomAffine(degrees=[-angle, angle], translate=(rnd_trans_rate[0], rnd_trans_rate[1]),
+                                        scale=(1 - rnd_scal_rate, 1 + rnd_scal_rate), fill=1)]) # Rotate, translate, scale
+    trans_tensor = trans(resized_tensor)
+
+    # Final resizing to original shape (N, C, H, W)
+    final_resize_transform = transforms.Resize((H, W))
+    output_tensor = final_resize_transform(trans_tensor)
+    output_tensor = torch.clamp(output_tensor, 0, 1)
+
+    return output_tensor
+
 
