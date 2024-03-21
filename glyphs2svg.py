@@ -1,6 +1,7 @@
 import fontforge
 import os
 import re
+import argparse
 
 def adjust_svg_viewbox(svg_content, canvas_size=256):
     # 构建新的 viewBox 字符串
@@ -30,7 +31,9 @@ def export_glyphs_to_svg_with_viewbox(font_path, output_dir, canvas_size=256):
         with open(file_path, 'w') as file:
             file.write(svg_data)
 
-font_path = "./simsun.ttc"  # 替换为你的字体文件路径
-output_dir = "./svg256"  # 替换为你的输出目录
-canvas_size = 256
-export_glyphs_to_svg_with_viewbox(font_path, output_dir, canvas_size)
+parser = argparse.ArgumentParser(description="parser for glyphs to svg.")
+parser.add_argument("--font_path", type=str, default="./simsun.ttc", help="glyphs path.")
+parser.add_argument("--output_dir", type=str, default="./svg256", help="output svg path.")
+parser.add_argument("--canvas_size", type=int, default=256, help="canvas size.")
+args = parser.parse_args()
+export_glyphs_to_svg_with_viewbox(args.font_path, args.output_dir, args.canvas_size)
