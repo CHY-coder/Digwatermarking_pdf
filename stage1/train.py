@@ -104,7 +104,7 @@ def evaluate(args):
 
 def train(args):
     logger = setup_logger()
-    logger.info("Training process started.")
+    logger.info("Training process started." + ' '.join(sys.argv[1:]))
 
     device = torch.device(args.device)
 
