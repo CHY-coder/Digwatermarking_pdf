@@ -55,20 +55,20 @@ def main(args):
         transforms.ToTensor(),
     ])
 
-    ori_path_list = glob.glob(os.path.join("../stage1/ori_png", '*.png'))
+    ori_path_list = glob.glob(os.path.join(args.ori_png_path, '*.png'))
     ori_path_list = sorted(ori_path_list)
     ori_tensor = Image.open(ori_path_list[args.num_svg])
     ori_tensor = transform(ori_tensor)
 
-    pydiffvg.imwrite(ori_tensor.permute(1, 2, 0).repeat(1, 1, 3).cpu(), 'results/refine_svg/a_ori_png.png',gamma=gamma)
+    pydiffvg.imwrite(ori_tensor.permute(1, 2, 0).repeat(1, 1, 3).cpu(), f'{args.out_path}/a_ori_png.png',gamma=gamma)
 
     svg_path_list = glob.glob(os.path.join(args.svg_path, '*.svg'))
     svg_path_list = sorted(svg_path_list)
 
-    png_path_list = glob.glob(os.path.join(args.png_path, '*.png'))
+    png_path_list = glob.glob(os.path.join(args.en_png_path, '*.png'))
     png_path_list = sorted(png_path_list)
 
-    png_folder = os.path.basename(args.png_path)
+    png_folder = os.path.basename(args.en_png_path)
     if png_folder == "image_0":
         message = 0
     elif png_folder == "image_1":
@@ -78,6 +78,7 @@ def main(args):
 
     render = pydiffvg.RenderFunction.apply
     imgsr_model = create_sr_model()
+    message_criterion = torch.nn.CrossEntropyLoss()
 
     decoder = Decoder().to(device).eval()
     decoder.load_state_dict(torch.load(args.decoder_checkpoint_path, map_location=device))
@@ -86,16 +87,17 @@ def main(args):
 
     canvas_width, canvas_height, shapes, shape_groups, png_tensor, png_message = dataset[args.num_svg]
 
-    pydiffvg.imwrite(png_tensor.permute(1,2,0).repeat(1,1,3).cpu(), 'results/refine_svg/a_target_64.png', gamma=gamma)
+    pydiffvg.imwrite(png_tensor.permute(1,2,0).repeat(1,1,3).cpu(), f'{args.out_path}/a_target_64.png', gamma=gamma)
 
     png_tensor = png_tensor.unsqueeze(0).to(device)
+    png_message = png_message.unsqueeze(0).to(device)
 
-    #将分辨率从64*64提升到256*256
+    # 将分辨率从64*64提升到256*256
     imgsr_model.set_test_input(png_tensor)
     with torch.no_grad():
         imgsr_model.forward()
     png_tensor = imgsr_model.fake_B
-    pydiffvg.imwrite(png_tensor.squeeze(0).permute(1, 2, 0).repeat(1, 1, 3).cpu(), 'results/refine_svg/a_target_256.png', gamma=gamma)
+    pydiffvg.imwrite(png_tensor.squeeze(0).permute(1, 2, 0).repeat(1, 1, 3).cpu(), f'{args.out_path}/a_target_256.png', gamma=gamma)
 
     scene_args = pydiffvg.RenderFunction.serialize_scene( \
         canvas_width, canvas_height, shapes, shape_groups)
@@ -108,7 +110,7 @@ def main(args):
                  None,  # bg
                  *scene_args)
     # The output image is in linear RGB space. Do Gamma correction before saving the image.
-    pydiffvg.imwrite(img.cpu(), 'results/refine_svg/init.png', gamma=gamma)
+    pydiffvg.imwrite(img.cpu(), f'{args.out_path}/init.png', gamma=gamma)
 
     points_vars = []
     for path in shapes:
@@ -143,17 +145,35 @@ def main(args):
         img = img[:, :, 3:4] * img[:, :, :3] + torch.ones(img.shape[0], img.shape[1], 3,
                                                           device=device) * (1 - img[:, :, 3:4])
         # Save the intermediate render.
-        pydiffvg.imwrite(img.cpu(), 'results/refine_svg/iter_{}.png'.format(t), gamma=gamma)
+        pydiffvg.imwrite(img.cpu(), f'{args.out_path}/iter_{t}.png', gamma=gamma)
         img = img[:, :, :1]
         # Convert img from HWC to NCHW
         img = img.unsqueeze(0)
         img = img.permute(0, 3, 1, 2)  # NHWC -> NCHW
 
-        loss = (img - png_tensor).pow(2).mean()
+        image_loss = (img - png_tensor).pow(2).mean()
 
+        # 重新映射到64*64进行解码
+        img = render(64,  # width
+                     64,  # height
+                     2,  # num_samples_x
+                     2,  # num_samples_y
+                     0,  # seed
+                     None,  # bg
+                     *scene_args)
+        img = img[:, :, 3:4] * img[:, :, :3] + torch.ones(img.shape[0], img.shape[1], 3,
+                                                          device=device) * (1 - img[:, :, 3:4])
+        img = img[:, :, :1]
+        img = img.unsqueeze(0)
+        img = img.permute(0, 3, 1, 2)  # NHWC -> NCHW
+
+        img = add_noise(img)
+        img_message = decoder(img)
+
+        message_loss = message_criterion(img_message, png_message)
+
+        loss = image_loss + 1e-5 * message_loss
         print('render loss:', loss.item())
-
-        # Backpropagate the gradients.
         loss.backward()
 
         # Take a gradient descent step.
@@ -163,7 +183,7 @@ def main(args):
             group.fill_color.data.clamp_(0.0, 1.0)
 
         if t == args.num_iter - 1:
-            save_svg_paths_only('results/refine_svg/final.svg',
+            save_svg_paths_only(f'{args.out_path}/final.svg',
                                 canvas_width, canvas_height, shapes, shape_groups)
 
     scene_args = pydiffvg.RenderFunction.serialize_scene( \
@@ -175,8 +195,9 @@ def main(args):
                  0,  # seed
                  None,  # bg
                  *scene_args)
-    pydiffvg.imwrite(img.cpu(), 'results/refine_svg/final.png'.format(t), gamma=gamma)
+    pydiffvg.imwrite(img.cpu(), f'{args.out_path}/final.png', gamma=gamma)
 
+    # 重新映射到64*64进行解码
     img = render(64,  # width
                  64,  # height
                  2,  # num_samples_x
@@ -203,27 +224,36 @@ def main(args):
     print("正确编码数字为：", int(png_message.argmax(dim=-1)))
     print("*" * 200)
 
-    from subprocess import call
-
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    call(["ffmpeg", "-framerate", "24", "-i",
-        "results/refine_svg/iter_%d.png", "-vb", "20M",
-        f"results/refine_svg/total_{args.num_iter}_{timestamp}.mp4"])
+    # from subprocess import call
+    #
+    # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    # call(["ffmpeg", "-framerate", "24", "-i",
+    #     f"{args.out_path}/iter_%d.png", "-vb", "20M",
+    #     f"{args.out_path}/total_{args.num_iter}_{timestamp}.mp4"])
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_iter", type=int, default=200)
-    parser.add_argument("--num_svg", type=int, default=21)
+    parser.add_argument("--num_svg", type=int, default=25861)
     parser.add_argument("--out_width",type=int, default=256)
     parser.add_argument("--out_height", type=int, default=256)
-    parser.add_argument("--svg_path", type=str, default="svg/svg256", help="svg所在文件夹")
-
-    parser.add_argument("--png_path", type=str,
-                        default="../stage1/en_png/image_1", help="需要对齐的png所在文件夹")
 
     parser.add_argument("--decoder_checkpoint_path", type=str,
-                        default="model_checkpoints/decoder_epoch_end.pth", help="decoder模型参数文件")
+                        default="../stage1/model/20240327_082440/decoder_epoch_5.pth", help="decoder模型参数文件")
+
+    parser.add_argument("--svg_path", type=str,
+                        default="../../data/svg/svg256", help="svg所在文件夹")
+
+    parser.add_argument("--ori_png_path", type=str,
+                        default="../../data/ori_png64/0", help="原始png所在文件夹")
+
+    parser.add_argument("--en_png_path", type=str,
+                        default="../../data/en_png_3.27_20/image_0", help="需要对齐的编码png所在文件夹")
+
+    parser.add_argument("--out_path", type=str,
+                        default="../../results/refine_svg", help="结果保存路径")
 
     args = parser.parse_args()
+
     main(args)
