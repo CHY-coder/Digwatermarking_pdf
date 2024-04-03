@@ -8,7 +8,8 @@ import argparse
 from torchvision import transforms
 from save_svg import save_svg_paths_only
 from torch.utils.data import Dataset, DataLoader
-from model import Decoder, add_noise, create_sr_model
+from stage1.model import Decoder, add_noise
+from model import create_sr_model
 from PIL import Image
 
 gamma = 1.0
@@ -208,16 +209,16 @@ def main(args):
 
 if __name__ == "__main__":
 
-    decoder_checkpoint_path = "../stage1/model/20240328_084746/decoder_epoch_10.pth"
+    decoder_checkpoint_path = "../stage1/model/20240401_111646/decoder_epoch_end.pth"
 
     args1 = Args(
         num_iter=200,
         out_width=256,
         out_height=256,
         decoder_checkpoint_path=decoder_checkpoint_path,
-        svg_path="../../data/svg/svg256",
-        en_png_path="../../data/en_png_3.29_20/0",
-        out_path="../../results/refine_svg_test_4"
+        svg_path="../../data/svg256",
+        en_png_path="../stage1/output/0",
+        out_path="./results/refine_svg_test_4"
     )
 
     start_time = time.time()
@@ -230,9 +231,9 @@ if __name__ == "__main__":
         out_width=256,
         out_height=256,
         decoder_checkpoint_path=decoder_checkpoint_path,
-        svg_path="../../data/svg/svg256",
-        en_png_path="../../data/en_png_3.29_20/1",
-        out_path="../../results/refine_svg_test_4"
+        svg_path="../../data/svg256",
+        en_png_path="../stage1/output/1",
+        out_path="./results/refine_svg_test_4"
     )
 
     start_time = time.time()
