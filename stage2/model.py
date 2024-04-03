@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 import numpy as np
-from deepvecfont.models.imgsr.modules import TrainOptions, create_model
+import sys
+sys.path.append(r"/app/deepvecfont")
+from models.imgsr.modules import TrainOptions, create_model
 
 
 def create_sr_model():
