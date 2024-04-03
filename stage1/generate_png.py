@@ -49,8 +49,8 @@ with torch.no_grad():
     for batch_data, batch_file_names in dataloader:
         for data, file_name in zip(batch_data, batch_file_names):
             data = data.unsqueeze(0)
-            y1 = encoder(data, [1])
-            y0 = encoder(data, [0])
+            y1 = encoder(data,torch.tensor([1]))
+            y0 = encoder(data,torch.tensor([0]))
             y1 = torch.clamp(y1, min=0, max=1)
             y0 = torch.clamp(y0, min=0, max=1)
             utils.save_images(y1, generate_1, file_name)
