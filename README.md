@@ -16,6 +16,8 @@ fontforge -script glyphs2png.py
 way 3 (This way do not set size)
 fontforge -lang=ff -c 'Open($1); SelectWorthOutputting(); foreach Export("svg"); endloop;' font.ttf 
 ```
+## we put deepvecfont into /app/deepvecfont and modify modify the checkpoints_dir in /app/deepvecfont/models/imgsr/modules.py line 50 to '/app/deepvecfont/experiments'
+
 # Reference
 ```
 init code: https://github.com/pytorch/examples/blob/main/fast_neural_style/README.md

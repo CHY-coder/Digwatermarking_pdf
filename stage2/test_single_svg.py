@@ -1,6 +1,7 @@
 import os
 import glob
 import time
+import sys
 
 import pydiffvg
 import torch
@@ -8,6 +9,9 @@ import argparse
 from torchvision import transforms
 from save_svg import save_svg_paths_only
 from torch.utils.data import Dataset, DataLoader
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 from stage1.model import Decoder, add_noise
 from model import create_sr_model
 from PIL import Image
@@ -209,7 +213,7 @@ def main(args):
 
 if __name__ == "__main__":
 
-    decoder_checkpoint_path = "../stage1/model/20240401_111646/decoder_epoch_end.pth"
+    decoder_checkpoint_path = "../stage1/model/20240403_095840/decoder_epoch_end.pth"
 
     args1 = Args(
         num_iter=200,
