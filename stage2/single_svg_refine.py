@@ -1,5 +1,6 @@
 import os
 import glob
+import sys
 
 import datetime
 import pydiffvg
@@ -9,7 +10,11 @@ from torchvision import transforms
 from save_svg import save_svg_paths_only
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
-from model import create_sr_model, Decoder, add_noise
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+from stage1.model import Decoder, add_noise
+from model import create_sr_model
 
 gamma = 1.0
 
@@ -69,9 +74,9 @@ def main(args):
     png_path_list = sorted(png_path_list)
 
     png_folder = os.path.basename(args.en_png_path)
-    if png_folder == "image_0":
+    if png_folder == "0":
         message = 0
-    elif png_folder == "image_1":
+    elif png_folder == "1":
         message = 1
     else:
         message = None
@@ -240,19 +245,19 @@ if __name__ == "__main__":
     parser.add_argument("--out_height", type=int, default=256)
 
     parser.add_argument("--decoder_checkpoint_path", type=str,
-                        default="../stage1/model/20240327_082440/decoder_epoch_5.pth", help="decoder模型参数文件")
+                        default="../stage1/model/20240403/decoder_epoch_17.pth", help="decoder模型参数文件")
 
     parser.add_argument("--svg_path", type=str,
-                        default="../../data/svg/svg256", help="svg所在文件夹")
+                        default="../../data/svg256", help="svg所在文件夹")
 
     parser.add_argument("--ori_png_path", type=str,
-                        default="../../data/ori_png64/0", help="原始png所在文件夹")
+                        default="../../data/png64/0", help="原始png所在文件夹")
 
     parser.add_argument("--en_png_path", type=str,
-                        default="../../data/en_png_3.27_20/image_0", help="需要对齐的编码png所在文件夹")
+                        default="../stage1/output/0", help="需要对齐的编码png所在文件夹")
 
     parser.add_argument("--out_path", type=str,
-                        default="../../results/refine_svg", help="结果保存路径")
+                        default="./results/refine_svg", help="结果保存路径")
 
     args = parser.parse_args()
 
