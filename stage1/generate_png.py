@@ -37,7 +37,6 @@ transform = transforms.Compose([
     transforms.ToTensor(),  # 数值在[0,1]
 ])
 dataset = CustomImageDataset(args.data, transform)
-dataloader = torch.utils.data.DataLoader(dataset, batch_size=1)
 
 if not os.path.exists(args.output):
     os.makedirs(args.output)
@@ -46,14 +45,12 @@ generate_1 = os.path.join(args.output, '1')
 
 with torch.no_grad():
     encoder = utils.load_model(args.checkpoint, 'cpu', 'encoder')
-    for batch_data, batch_file_names in dataloader:
-        for data, file_name in zip(batch_data, batch_file_names):
-            data = data.unsqueeze(0)
-            y1 = encoder(data,torch.tensor([1]))
-            y0 = encoder(data,torch.tensor([0]))
-            y1 = torch.clamp(y1, min=0, max=1)
-            y0 = torch.clamp(y0, min=0, max=1)
-            utils.save_images(y1, generate_1, file_name)
-            utils.save_images(y0, generate_0, file_name)
-
+    for data, file_name in dataset:
+        data = data.unsqueeze(0)
+        y1 = encoder(data, torch.tensor([1]))
+        y0 = encoder(data, torch.tensor([0]))
+        y1 = torch.clamp(y1, min=0, max=1)
+        y0 = torch.clamp(y0, min=0, max=1)
+        utils.save_images(y1, generate_1, file_name)
+        utils.save_images(y0, generate_0, file_name)
 
