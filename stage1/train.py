@@ -13,17 +13,15 @@ from torchvision import transforms
 import torch.onnx
 from torch.nn import functional as F
 
-
-import utils
-from model import Encoder, Decoder, Discriminator, add_noise, add_noise2
+from stage1 import utils
+from model import Encoder, Decoder, Discriminator
+from noise import add_noise2
 from vgg import Vgg16
 
 def check_paths(args):
     try:
         if not os.path.exists(args.save_model_dir):
             os.makedirs(args.save_model_dir)
-        # if args.checkpoint_model_dir is not None and not (os.path.exists(args.checkpoint_model_dir)):
-        #     os.makedirs(args.checkpoint_model_dir)
     except OSError as e:
         print(e)
         sys.exit(1)
@@ -141,9 +139,9 @@ def train(args):
                 discri_l = args.A_weight * d_loss
                 discri_loss = discri_loss + discri_l
 
-                y = add_noise(y)
+                # y = add_noise(y)
+                y = add_noise2(y, args, global_step)
                 y = torch.clamp(y, min=0, max=1)
-                # y = add_noise2(y, args, global_step)
                 m = decoder(y)
                 m_l = args.m_weight * criterion_de(m, message.to(device))
                 m_loss = m_loss + m_l

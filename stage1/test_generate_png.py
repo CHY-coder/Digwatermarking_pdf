@@ -1,7 +1,7 @@
 import glob
 from torchvision import transforms
 import torch.onnx
-import utils
+from stage1 import utils
 import argparse
 import os
 from torch.utils.data import Dataset

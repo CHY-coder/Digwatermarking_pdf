@@ -8,18 +8,16 @@ import torch
 import argparse
 from torchvision import transforms
 from save_svg import save_svg_paths_only
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from PIL import Image
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
-from stage1.model import Decoder, add_noise
+from model import Decoder
+from noise import add_noise, add_noise2
 from utils import setup_logger
-from model import create_sr_model
 
 gamma = 1.0
 
-device = torch.device("cuda")
+device = torch.device("cuda:0")
+torch.cuda.set_device(device)
 
 
 class SvgAndPngDataset(Dataset):
@@ -159,7 +157,7 @@ def main(args):
             img = img.unsqueeze(0)
             img = img.permute(0, 3, 1, 2)  # NHWC -> NCHW
 
-            img = add_noise(img)
+            img = add_noise2(img, args, args.globle)
             img_message = decoder(img)
 
             message_loss = message_criterion(img_message, png_message)
@@ -195,7 +193,7 @@ def main(args):
         img = img.unsqueeze(0)
         img = img.permute(0, 3, 1, 2)
 
-        img = add_noise(img)
+        img = add_noise2(img, args, args.globle)
         img_message = decoder(img)
 
         png_tensor = add_noise(png_tensor)
@@ -222,13 +220,13 @@ if __name__ == "__main__":
     parser.add_argument("--out_height", type=int, default=64)
 
     parser.add_argument("--decoder_checkpoint_path", type=str,
-                        default="../stage1/model/20240403/decoder_epoch_17.pth", help="decoder模型参数文件")
+                        default="../stage1/model/20240419_145013/decoder_epoch_2.pth", help="decoder模型参数文件")
 
     parser.add_argument("--svg_path", type=str,
-                        default="../../data/svg256", help="svg所在文件夹")
+                        default="../../data/svg35", help="svg所在文件夹")
 
     parser.add_argument("--ori_png_path", type=str,
-                        default="../../data/png64/0", help="原始png所在文件夹")
+                        default="../../data/ori_png64_35/0", help="原始png所在文件夹")
 
     parser.add_argument("--en_png_path", type=str,
                         default="../stage1/output/0", help="需要对齐的编码png所在文件夹")
@@ -237,9 +235,34 @@ if __name__ == "__main__":
                         default="./results/refine_svg_64/0", help="结果保存路径")
 
     parser.add_argument("--start", type=int,
-                        default=10000, help="开始的索引")
+                        default=0, help="开始的索引")
     parser.add_argument("--delta", type=int,
                         default=2000, help="处理的数据量")
+    parser.add_argument("--globle", type=int,
+                        default=5000, help="")
+
+    parser.add_argument('--rnd_bri_ramp', type=int, default=1000)
+    parser.add_argument('--rnd_sat_ramp', type=int, default=1000)
+    parser.add_argument('--rnd_hue_ramp', type=int, default=1000)
+    parser.add_argument('--rnd_noise_ramp', type=int, default=1000)
+    parser.add_argument('--contrast_ramp', type=int, default=1000)
+    parser.add_argument('--rnd_resize_ramp', type=int, default=1000)
+    parser.add_argument('--rnd_trans_ramp', type=int, default=1000)
+    parser.add_argument('--rnd_scal_ramp', type=int, default=1000)
+    parser.add_argument('--rnd_rot_ramp', type=int, default=1000)
+    parser.add_argument('--rnd_perspec_ramp', type=int, default=1000)
+
+    parser.add_argument('--rnd_bri', type=float, default=.3)
+    parser.add_argument('--rnd_noise', type=float, default=.02)
+    parser.add_argument('--rnd_sat', type=float, default=1.0)
+    parser.add_argument('--rnd_hue', type=float, default=.1)
+    parser.add_argument('--contrast_low', type=float, default=.5)
+    parser.add_argument('--contrast_high', type=float, default=1.5)
+    parser.add_argument('--rnd_resize', type=float, default=.1)
+    parser.add_argument('--rnd_trans', type=float, default=0.2)
+    parser.add_argument('--rnd_scal', type=float, default=.1)
+    parser.add_argument('--rnd_rot', type=float, default=30)
+    parser.add_argument('--rnd_perspec', type=float, default=0.1)
 
     args = parser.parse_args()
 
