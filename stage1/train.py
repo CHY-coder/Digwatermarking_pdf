@@ -58,15 +58,16 @@ def train(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
+    # 数据加载
     transform = transforms.Compose([
         transforms.Resize((args.image_size, args.image_size)),
         transforms.Grayscale(num_output_channels=1), # 单通道
         transforms.ToTensor(), # 数值在[0,1]
-        # transforms.Lambda(lambda x: x.mul(255))
     ])
     train_dataset = datasets.ImageFolder(args.dataset, transform)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 
+    # 建立模型或加载已有的模型继续训练，并设置优化器
     if args.en_checkpoint is not None and os.path.exists(args.en_checkpoint):
         encoder = utils.load_model(args.en_checkpoint, device, "encoder")
     else:
@@ -90,6 +91,7 @@ def train(args):
     optimizer_de = Adam(decoder.parameters(), args.lr)
     criterion_de = torch.nn.CrossEntropyLoss()
 
+    # 设置更新次数计数器，add_noise2有用
     global_step = 0
 
     try:
@@ -114,14 +116,13 @@ def train(args):
                 optimizer_de.zero_grad()
 
                 x = x.to(device)
-                y = encoder(x, message)
-                y = torch.clamp(y, min=0, max=1)
-                # y = utils.normalize_batch(y)
-                # x = utils.normalize_batch(x)
+                y = encoder(x, message) #编码器编码信息
+                y = torch.clamp(y, min=0, max=1) #将数据限制在[0,1]
 
                 vq_l = args.vq_weight * mse_loss(y, x)
                 vq_loss = vq_loss + vq_l
 
+                # 用vgg16计算percep_loss
                 features_y = vgg(y)
                 features_x = vgg(x)
                 p_loss = 0
@@ -132,6 +133,7 @@ def train(args):
                 percep_l = args.percep_weight * p_loss
                 percep_loss = percep_loss + percep_l
 
+                # 判别器
                 discri_x = discri(x)
                 discri_y = discri(y)
                 d_loss = criterion(discri_x, torch.ones_like(discri_x)) + criterion(discri_y,
@@ -231,8 +233,9 @@ def main():
                                   help="provide discriminator checkpoint path to continue training.")
     train_arg_parser.add_argument("--eval_data", type=str, default=None,
                                   help="Evaluate dataset, default is None.")
-
-    train_arg_parser.add_argument('--rnd_bri_ramp', type=int, default=1000)
+    # add_noise2的噪声参数
+    train_arg_parser.add_argument('--rnd_bri_ramp', type=int, default=1000,
+                                  help="默认在模型参数更新1000次之前，实际噪声扰动系数=（当前更新次数/1000）* 设置扰动系数")
     train_arg_parser.add_argument('--rnd_sat_ramp', type=int, default=1000)
     train_arg_parser.add_argument('--rnd_hue_ramp', type=int, default=1000)
     train_arg_parser.add_argument('--rnd_noise_ramp', type=int, default=1000)
@@ -243,17 +246,17 @@ def main():
     train_arg_parser.add_argument('--rnd_rot_ramp', type=int, default=1000)
     train_arg_parser.add_argument('--rnd_perspec_ramp', type=int, default=1000)
 
-    train_arg_parser.add_argument('--rnd_bri', type=float, default=.3)
-    train_arg_parser.add_argument('--rnd_noise', type=float, default=.02)
-    train_arg_parser.add_argument('--rnd_sat', type=float, default=1.0)
-    train_arg_parser.add_argument('--rnd_hue', type=float, default=.1)
-    train_arg_parser.add_argument('--contrast_low', type=float, default=.5)
-    train_arg_parser.add_argument('--contrast_high', type=float, default=1.5)
-    train_arg_parser.add_argument('--rnd_resize', type=float, default=.1)
-    train_arg_parser.add_argument('--rnd_trans', type=float, default=0.2)
-    train_arg_parser.add_argument('--rnd_scal', type=float, default=.1)
-    train_arg_parser.add_argument('--rnd_rot', type=float, default=30)
-    train_arg_parser.add_argument('--rnd_perspec', type=float, default=0.1)
+    train_arg_parser.add_argument('--rnd_bri', type=float, default=.3, help='随机亮度变化的幅度')
+    train_arg_parser.add_argument('--rnd_noise', type=float, default=.02, help='随机添加噪声的程度')
+    train_arg_parser.add_argument('--rnd_sat', type=float, default=1.0, help='随机饱和度变化的幅度')
+    train_arg_parser.add_argument('--rnd_hue', type=float, default=.1, help='随机色调变化的幅度')
+    train_arg_parser.add_argument('--contrast_low', type=float, default=.5, help='随机对比度最低值')
+    train_arg_parser.add_argument('--contrast_high', type=float, default=1.5, help='随机对比度最高值')
+    train_arg_parser.add_argument('--rnd_resize', type=float, default=.1, help='图像大小随机系数')
+    train_arg_parser.add_argument('--rnd_trans', type=float, default=0.2, help='随机平移的程度')
+    train_arg_parser.add_argument('--rnd_scal', type=float, default=.1, help='随机尺度变化的比例')
+    train_arg_parser.add_argument('--rnd_rot', type=float, default=30, help='随机旋转的角度')
+    train_arg_parser.add_argument('--rnd_perspec', type=float, default=0.1, help='随机透视变换的程度')
 
     eval_arg_parser = subparsers.add_parser("eval", help="parser for evaluation arguments")
     eval_arg_parser.add_argument("--img_dir", type=str, required=True,
