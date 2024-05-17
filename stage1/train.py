@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import datetime
+import sys
 
 import numpy as np
 import torch
@@ -12,11 +13,14 @@ from torchvision import datasets
 from torchvision import transforms
 import torch.onnx
 from torch.nn import functional as F
-
-from stage1 import utils
-from model import Encoder, Decoder, Discriminator
-from noise import add_noise2
 from vgg import Vgg16
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+import utils
+from model import Encoder, Decoder, Discriminator, add_noise
+from noise import add_noise2
 
 def check_paths(args):
     try:

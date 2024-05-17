@@ -100,6 +100,27 @@ def test_net(net, image, text_threshold, link_threshold, low_text, cuda, poly, r
     # Post-processing
     boxes, polys = craft_utils.getDetBoxes(score_text, score_link, text_threshold, link_threshold, low_text, poly)
 
+    groups = []  # 用于存储分组后的数据
+    current_group = []  # 当前处理的组
+    for i in range(len(boxes)):
+        if i == 0 or boxes[i][0][1] - boxes[i - 1][0][1] > 10:
+            # 如果当前组非空，先将其加入groups并清空
+            if current_group:
+                groups.append(current_group)
+                current_group = []
+        # 添加当前数据到当前组
+        current_group.append(boxes[i])
+    if current_group:
+        groups.append(current_group)
+    # 对每个组内的数据根据第一个点的x坐标进行排序
+    sorted_groups = []
+    for group in groups:
+        # 根据第一个点的x坐标排序
+        group.sort(key=lambda x: x[0, 0])
+        sorted_groups.extend(group)
+
+    boxes = sorted_groups
+
     # coordinate adjustment
     boxes = craft_utils.adjustResultCoordinates(boxes, ratio_w, ratio_h)
     polys = craft_utils.adjustResultCoordinates(polys, ratio_w, ratio_h)

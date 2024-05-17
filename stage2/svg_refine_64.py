@@ -10,6 +10,9 @@ from torchvision import transforms
 from save_svg import save_svg_paths_only
 from torch.utils.data import Dataset
 from PIL import Image
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 from model import Decoder
 from noise import add_noise, add_noise2
 from utils import setup_logger

@@ -1,5 +1,22 @@
 import torch
 import torch.nn as nn
+from torchvision import transforms
+import numpy as np
+import sys
+sys.path.append(r"/app/deepvecfont")
+from models.imgsr.modules import TrainOptions, create_model
+
+
+def create_sr_model():
+    imgsr_opt = TrainOptions().parse()
+    imgsr_opt.isTrain = False
+    imgsr_opt.batch_size = 1
+    imgsr_opt.phase = 'test'
+    imgsr_model = create_model(imgsr_opt)
+    imgsr_model.setup(imgsr_opt)
+
+    return imgsr_model
+
 
 class Encoder(torch.nn.Module):
     def __init__(self, num_residual_blocks=4):
@@ -190,3 +207,57 @@ class Discriminator(torch.nn.Module):
         output = output.view(output.size(0), -1)
         output = torch.sigmoid(self.fc(output))
         return output
+
+
+class GaussianNoise(torch.nn.Module):
+    """Adds Gaussian noise to an image."""
+
+    def __init__(self, mean=0., std=1.):
+        super().__init__()
+        self.std = std
+        self.mean = mean
+
+    def forward(self, tensor):
+        return tensor + torch.randn(tensor.size()).to(tensor.device) * self.std + self.mean
+
+
+class ColorJitter(torch.nn.Module):
+    """Randomly changes the brightness, contrast, saturation, and hue of an image."""
+
+    def __init__(self, brightness=0, contrast=0, saturation=0, hue=0):
+        super().__init__()
+        self.transform = transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation,
+                                                hue=hue)
+
+    def forward(self, img):
+        return self.transform(img)
+
+
+def generate_random_number():
+    mean = 1
+    std_dev = 0.2  # 较小的标准差意味着大部分数值将更加集中在均值附近
+    number = np.random.normal(mean, std_dev)
+
+    # 确保生成的数在0到2之间
+    number = max(min(number, 1.5), 0.5)
+    return number
+
+
+def add_noise(batch):
+    b, c, h, w = batch.shape
+
+    # Define the sequence of transformations
+    transforms_list = transforms.Compose([
+        transforms.Resize((round(h * generate_random_number()), round(w * generate_random_number()))),  # Resize
+        transforms.RandomAffine(degrees=15, translate=(0.1, 0.1), scale=(0.9, 1.1)),  # Rotate, translate, scale
+        transforms.RandomPerspective(distortion_scale=0.2, p=0.5),  # Perspective transformation
+        transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),  # Blur
+        GaussianNoise(mean=0., std=0.1),  # Gaussian noise
+        ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Color manipulation
+        transforms.Resize((64,64))
+    ])
+
+    # Apply the transformations
+    batch_transformed = torch.stack([transforms_list(img) for img in batch])
+    return batch_transformed
+
