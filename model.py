@@ -18,6 +18,21 @@ def create_sr_model():
     return imgsr_model
 
 
+
+class TrinaryDecoder(nn.Module):
+    def __init__(self, binary_decoder):
+        super(TrinaryDecoder, self).__init__()
+        self.binary_decoder = binary_decoder  # 重用已经训练好的二分类解码器部分
+        # 添加一个新的线性层，将输出扩展到3（三分类）
+        self.new_fc = nn.Linear(2, 3)  # 假设二分类解码器的输出维度为2
+
+    def forward(self, x):
+        x = self.binary_decoder(x)  # 使用原有解码器的输出
+        x = self.new_fc(x)          # 新增层，将输出转为三分类
+        return x
+
+
+
 class Encoder(torch.nn.Module):
     def __init__(self, num_residual_blocks=4):
         super(Encoder, self).__init__()
@@ -62,6 +77,7 @@ class Encoder(torch.nn.Module):
         return y
 
 
+
 class MessageEmbeddingLayer(nn.Module):
     def __init__(self, input_dim, output_channels, H, W):
         super(MessageEmbeddingLayer, self).__init__()
@@ -81,6 +97,8 @@ class MessageEmbeddingLayer(nn.Module):
         embedded_message = embedded_message.view(-1, self.output_channels, self.H,
                                                  self.W)
         return embedded_message
+
+
 
 class Decoder(torch.nn.Module):
     def __init__(self, num_residual_blocks=4):
@@ -113,6 +131,7 @@ class Decoder(torch.nn.Module):
         return x
 
 
+
 class ConvLayer(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding_mode='reflect'):
         super(ConvLayer, self).__init__()
@@ -121,6 +140,7 @@ class ConvLayer(torch.nn.Module):
 
     def forward(self, x):
         return self.conv2d(x)
+
 
 
 class ChannelAttention(torch.nn.Module):
@@ -139,6 +159,7 @@ class ChannelAttention(torch.nn.Module):
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
         return x * y.expand_as(x)
+
 
 
 class ResidualBlock(torch.nn.Module):
@@ -182,6 +203,7 @@ class ResidualBlock(torch.nn.Module):
         return out
 
 
+
 class Discriminator(torch.nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
@@ -209,6 +231,7 @@ class Discriminator(torch.nn.Module):
         return output
 
 
+
 class GaussianNoise(torch.nn.Module):
     """Adds Gaussian noise to an image."""
 
@@ -219,6 +242,7 @@ class GaussianNoise(torch.nn.Module):
 
     def forward(self, tensor):
         return tensor + torch.randn(tensor.size()).to(tensor.device) * self.std + self.mean
+
 
 
 class ColorJitter(torch.nn.Module):
@@ -233,6 +257,7 @@ class ColorJitter(torch.nn.Module):
         return self.transform(img)
 
 
+
 def generate_random_number():
     mean = 1
     std_dev = 0.2  # 较小的标准差意味着大部分数值将更加集中在均值附近
@@ -241,6 +266,7 @@ def generate_random_number():
     # 确保生成的数在0到2之间
     number = max(min(number, 1.5), 0.5)
     return number
+
 
 
 def add_noise(batch):

@@ -12,6 +12,34 @@ import random
 import matplotlib.pyplot as plt
 import logging
 import datetime
+from torch.utils.data import Dataset
+
+
+class PngDataset(Dataset):
+    def __init__(self, png_path_list, message):
+
+        self.png_path_list = png_path_list
+        self.message = message
+
+        self.transform = transforms.Compose([
+                        transforms.Resize([64,64]),
+                        transforms.Grayscale(num_output_channels=1),
+                        transforms.ToTensor(),
+                        ])
+
+    def __len__(self):
+        return len(self.png_path_list)
+
+    def __getitem__(self, idx):
+
+        png_tensor = Image.open(self.png_path_list[idx])
+        png_tensor = self.transform(png_tensor)
+
+        png_message = torch.tensor(self.message)
+
+        return png_tensor, png_message
+
+
 
 def setup_logger(prefix='model_training', log_dir='logs', console_level=logging.ERROR):
     """
@@ -62,12 +90,17 @@ def setup_logger(prefix='model_training', log_dir='logs', console_level=logging.
     logger.addHandler(stream_handler)
 
     return logger
+
+
+
 def showimg(img_tensor):
     # 将图像从(c, h, w)转换为(h, w, c)以符合matplotlib的图像格式
     for i in range(0, img_tensor.shape[0]):
         img_to_show = img_tensor[i].permute(1, 2, 0).numpy()
         plt.imshow(img_to_show)
         plt.show()
+
+
 
 def load_images(directory, size=None, scale=None):
     images = []
@@ -83,6 +116,8 @@ def load_images(directory, size=None, scale=None):
         images.append(img)
     return images
 
+
+
 def load_model(path, device, name):
     if name == 'encoder':
         model = Encoder()
@@ -95,6 +130,8 @@ def load_model(path, device, name):
     model.to(device)
     model.eval()
     return model
+
+
 
 def save_images(tensor, directory, name="0"):
     """
@@ -124,12 +161,15 @@ def save_images(tensor, directory, name="0"):
         pil_image.save(file_path)
 
 
+
 def gram_matrix(y):
     (b, ch, h, w) = y.size()
     features = y.view(b, ch, w * h)
     features_t = features.transpose(1, 2)
     gram = features.bmm(features_t) / (ch * h * w)
     return gram
+
+
 
 def save_model(encoder, decoder, discri, args, e='end'):
     encoder.eval().cpu()
@@ -146,6 +186,7 @@ def save_model(encoder, decoder, discri, args, e='end'):
     discri_model_filename = "discri_epoch_" + e + ".pth"
     discri_model_path = os.path.join(args.save_model_dir, discri_model_filename)
     torch.save(discri.state_dict(), discri_model_path)
+
 
 
 def eval_model(encoder, decoder, args, device):
@@ -178,6 +219,8 @@ def eval_model(encoder, decoder, args, device):
             img0_correct = img0_correct + ((message == 0) & (message == predicted_classes)).float().sum().item()
         return img_total / 2, img1_correct, img0_correct
 
+
+
 def perspective_img(imgs, w, rate):
     d = w * rate
     tl_x = random.uniform(-d, d)  # Top left corner, top
@@ -204,6 +247,8 @@ def perspective_img(imgs, w, rate):
     out = transforms.functional.perspective(imgs, rect, dst, interpolation=Image.BILINEAR, fill=1)
     out = torch.clamp(out, 0, 1)
     return out
+
+
 
 def random_blur_kernel(probs, N_blur, sigrange_gauss, sigrange_line, wmin_line):
     N = N_blur
@@ -241,6 +286,8 @@ def random_blur_kernel(probs, N_blur, sigrange_gauss, sigrange_line, wmin_line):
 
     return vals
 
+
+
 def get_rnd_brightness_torch(rnd_bri, rnd_hue, batch_size):
     # Generate random hue adjustments
     rnd_hue = torch.rand((batch_size, 1, 1, 1), dtype=torch.float32) * (2 * rnd_hue) - rnd_hue
@@ -248,6 +295,9 @@ def get_rnd_brightness_torch(rnd_bri, rnd_hue, batch_size):
     rnd_brightness = torch.rand((batch_size, 1, 1, 1), dtype=torch.float32) * (2 * rnd_bri) - rnd_bri
     # Return the combined adjustments
     return rnd_hue + rnd_brightness
+
+
+
 def color_manipulation(encoded_image, args, ramp_fn):
     rnd_bri = ramp_fn(args.rnd_bri_ramp) * args.rnd_bri
     rnd_hue = ramp_fn(args.rnd_hue_ramp) * args.rnd_hue
@@ -279,12 +329,16 @@ def color_manipulation(encoded_image, args, ramp_fn):
 
     return encoded_image
 
+
+
 def noise(encoded_image, rnd_noise):
     noise = torch.normal(mean=0.0, std=rnd_noise, size=encoded_image.size())
     encoded_image = encoded_image + noise.to(encoded_image.device)
     encoded_image = torch.clamp(encoded_image, 0, 1)
 
     return encoded_image
+
+
 
 def apply_transformations(input_tensor, args, ramp_fn, H, W):
     # Resizing
