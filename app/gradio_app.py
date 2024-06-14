@@ -11,6 +11,7 @@ from pdf_to_image.pdf_to_image import pdf_to_images
 from image_cropping.image_crop import split_char
 from image_cropping.image_generate import gen_image
 from image_decoding.image_decode import decode_id
+import subprocess
 
 
 def decimal_to_ternary(decimal_number):
@@ -26,6 +27,13 @@ def decimal_to_ternary(decimal_number):
         ternary_number.insert(0, 0)
 
     return ternary_number
+
+
+def ternary_to_decimal(ternary_strings):
+    # 使用内置函数int()进行多行三进制到十进制的转换
+    lines = ternary_strings.split('\n')
+    decimal_numbers = [int(line[1:], 3) for line in lines if line.strip()]
+    return decimal_numbers
 
 
 def add_and_mod(ternary_number):
@@ -69,14 +77,21 @@ def check(code):
     return final_result
 
 
-def encode(num):
+def encode(file_path, num, colum):
     number = int(num)
     if number>1594323:
         result = {"id":"null (大于最大可编码数字)"}
     else:
         result = {"id":process_decimal(number)}
+    jar_path = 'gpdf-1.0.jar' 
+    command = ['java', '-jar', jar_path, file_path, colum, result["id"]]
+    try:
+        subprocess.run(command, check=True)
+        print("Java程序执行成功！")
+    except subprocess.CalledProcessError as e:
+        print(f"执行Java程序时发生错误：{e}")
 
-    return result["id"]
+    return result["id"], gr.update(visible=True)
 
 
 def decode(file_path):
@@ -130,17 +145,33 @@ def decode(file_path):
     end = time.time()
     print(f"解码ID验证运行时间: {end - start:.2f} 秒")
 
-    result = {"id": code, "result": decode_result}
+    print(code)
+    code_id = ternary_to_decimal(code)
+    print(code)
 
+    if len(code_id) == 2:
+        result = {"code":code, "id": str(code_id[0])+"\n"+str(code_id[1]), "result": decode_result}
+    else:
+        result = {"code":code, "id": str(code_id[0]), "result": decode_result}
     total_time = time.time() - start_time
+
     print(f"总运行时间: {total_time:.2f} 秒")
 
-    return result["id"], result["result"]
+    return result["id"]
+
+
+def down_file(colum):
+    if colum == '1':
+        pdf_file_path = "./out1_1.pdf"
+    else:
+        pdf_file_path = "./out2_1.pdf"
+    return pdf_file_path
 
 
 with gr.Blocks() as demo:
-
+    
     with gr.Tab("encode"):
+        file_exel = gr.File(label="Excel数据上传: ")
         with gr.Row():
             user_input = gr.Textbox(
                 label="公司id: ",
@@ -148,25 +179,37 @@ with gr.Blocks() as demo:
                 elem_id="input_box",
             )
         with gr.Row():
-            encode_out = gr.Textbox(label="编码id: ")
+            encodeBtn = gr.Button(value="编码", variant="primary", scale=0)
 
         with gr.Row():
-            encodeBtn = gr.Button(value="编码", variant="primary", scale=0)
+            user_input2 = gr.Textbox(
+                visible=False,
+                value="2",
+                label="数据列: ",
+                placeholder="请输入1列或2列",
+                elem_id="input_box",
+            )
+        with gr.Row():
+            encode_out = gr.Textbox(visible=False, label="编码id: ")
+
+        download_pdf = gr.File(label="点击下载PDF文件", interactive=False, visible=False)
 
     with gr.Tab("decode"):
         file_download = gr.File(label="文档扫描pdf上传: ")
 
         with gr.Row():
             with gr.Column(scale=1):
-                output = gr.Textbox(label="解码id: ")
-            with gr.Column(scale=1):
-                output2 = gr.Textbox(label="校验位验证结果: ")
+                output3 = gr.Textbox(label="公司id: ")
+            # with gr.Column(scale=1):
+            #     output = gr.Textbox(visible=False, label="解码id: ")
+            # with gr.Column(scale=1):
+            #     output2 = gr.Textbox(visible=False, label="校验位验证结果: ")
 
         with gr.Row():
             decodeBtn = gr.Button(value="解码", variant="primary", scale=0)
 
-    encodeBtn.click(encode,[user_input],[encode_out])
-    decodeBtn.click(decode,[file_download], [output,output2])
+    encodeBtn.click(encode,[file_exel,user_input,user_input2],[encode_out,download_pdf]).then(down_file,[user_input2],[download_pdf])
+    decodeBtn.click(decode,[file_download], [output3])
 
 demo.queue()
 demo.launch(server_name="127.0.0.1", server_port=8891, share=True)
